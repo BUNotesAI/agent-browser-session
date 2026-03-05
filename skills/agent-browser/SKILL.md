@@ -119,6 +119,47 @@ agent-browser close
 agent-browser open https://app.example.com/dashboard  # Already logged in!
 ```
 
+## Tabs (多标签页)
+
+管理多个浏览器标签页，共享 cookies 和 localStorage：
+
+### 基本命令
+```bash
+agent-browser tab new              # 创建新 tab
+agent-browser tab new <url>        # 创建新 tab 并导航到 URL
+agent-browser tab list             # 列出所有 tabs
+agent-browser tab <n>              # 切换到第 n 个 tab (从 0 开始)
+agent-browser tab close            # 关闭当前 tab
+agent-browser tab close <n>        # 关闭第 n 个 tab
+```
+
+### 使用场景
+
+**1. 保持登录状态访问多页面**
+```bash
+agent-browser open https://app.com/login
+# ... 完成登录 ...
+agent-browser tab new https://app.com/dashboard  # 共享登录态
+agent-browser tab new https://app.com/settings   # 同样已登录
+```
+
+**2. 外部链接自动追踪**
+点击 `target="_blank"` 链接时，新页面会自动被追踪：
+```bash
+agent-browser click @e1  # 点击打开新窗口的链接
+agent-browser tab list   # 查看所有 tabs，包括新打开的
+agent-browser tab 1      # 切换到新 tab
+```
+
+**3. 并行数据采集**
+```bash
+agent-browser open https://shop.com/list
+agent-browser tab new https://shop.com/item/1
+agent-browser tab new https://shop.com/item/2
+agent-browser tab 1 && agent-browser snapshot -i  # 采集第一个商品
+agent-browser tab 2 && agent-browser snapshot -i  # 采集第二个商品
+```
+
 ## Sessions
 
 Note: All sessions share the same userDataDir (`~/tmp/agent-browser/`), so parallel sessions may cause file locking issues. Use one session at a time for best results.

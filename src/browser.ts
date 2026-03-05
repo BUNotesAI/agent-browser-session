@@ -91,8 +91,8 @@ export class BrowserManager {
   private screencastFrameHandler: ((params: any) => void) | null = null;
 
   // Rate limiting: delay before each navigation (in ms)
-  // Default 10 seconds to be server-friendly during testing
-  private navigationDelay: number = 10000;
+  // Default 5 seconds to be server-friendly during testing
+  private navigationDelay: number = 5000;
 
   /**
    * Check if browser is launched and still alive
@@ -724,8 +724,8 @@ export class BrowserManager {
       throw new Error('Extensions cannot be used with CDP connection');
     }
 
-    // Store navigation delay for rate limiting (default 10s to be server-friendly)
-    this.navigationDelay = options.navigationDelay ?? 10000;
+    // Store navigation delay for rate limiting (default 5s to be server-friendly)
+    this.navigationDelay = options.navigationDelay ?? 5000;
 
     if (this.isLaunched()) {
       const needsRelaunch =
@@ -884,6 +884,9 @@ export class BrowserManager {
     this.contexts = [context];
     this.cdpPort = null;
 
+    // Track externally opened pages (e.g., target="_blank" links)
+    this.setupContextTracking(context);
+
     // Listen for external browser close (e.g., user presses Cmd+Q)
     // This resets state so subsequent isLaunched() returns false
     context.on('close', () => {
@@ -989,12 +992,16 @@ export class BrowserManager {
   }
 
   /**
-   * Set up tracking for new pages in a context (for CDP connections)
+   * Set up tracking for new pages in a context (for CDP connections and popups/new tabs)
+   * This handles pages created externally (e.g., via target="_blank" links)
    */
   private setupContextTracking(context: BrowserContext): void {
     context.on('page', (page) => {
-      this.pages.push(page);
-      this.setupPageTracking(page);
+      // Only add if not already tracked (avoids duplicates when newTab() creates pages)
+      if (!this.pages.includes(page)) {
+        this.pages.push(page);
+        this.setupPageTracking(page);
+      }
     });
   }
 
@@ -1011,11 +1018,13 @@ export class BrowserManager {
 
     const context = this.contexts[0]; // Use first context for tabs
     const page = await context.newPage();
-    this.pages.push(page);
-    this.activePageIndex = this.pages.length - 1;
 
-    // Set up tracking for the new page
-    this.setupPageTracking(page);
+    // Only add if not already tracked (setupContextTracking may have already added it)
+    if (!this.pages.includes(page)) {
+      this.pages.push(page);
+      this.setupPageTracking(page);
+    }
+    this.activePageIndex = this.pages.length - 1;
 
     return { index: this.activePageIndex, total: this.pages.length };
   }
