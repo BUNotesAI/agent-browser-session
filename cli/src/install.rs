@@ -121,7 +121,7 @@ pub fn run_install(with_deps: bool) {
             }
         } else {
             println!("\x1b[33m⚠\x1b[0m Linux detected. If browser fails to launch, run:");
-            println!("  agent-browser install --with-deps");
+            println!("  agent-browser-session install --with-deps");
             println!("  or: npx patchright install --with-deps chromium");
             println!();
         }
@@ -148,14 +148,14 @@ pub fn run_install(with_deps: bool) {
             if is_linux && !with_deps {
                 println!();
                 println!("\x1b[33mNote:\x1b[0m If you see \"shared library\" errors when running, use:");
-                println!("  agent-browser install --with-deps");
+                println!("  agent-browser-session install --with-deps");
             }
         }
         Ok(_) => {
             eprintln!("\x1b[31m✗\x1b[0m Failed to install browser");
             if is_linux {
                 println!("\x1b[33mTip:\x1b[0m Try installing system dependencies first:");
-                println!("  agent-browser install --with-deps");
+                println!("  agent-browser-session install --with-deps");
             }
             exit(1);
         }

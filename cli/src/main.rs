@@ -163,13 +163,13 @@ fn main() {
     // Warn if executable_path, extensions, or channel was specified but daemon was already running
     if daemon_result.already_running && !flags.json {
         if flags.executable_path.is_some() {
-            eprintln!("\x1b[33m⚠\x1b[0m --executable-path ignored: daemon already running. Use 'agent-browser close' first to restart with new path.");
+            eprintln!("\x1b[33m⚠\x1b[0m --executable-path ignored: daemon already running. Use 'agent-browser-session close' first to restart with new path.");
         }
         if !flags.extensions.is_empty() {
-            eprintln!("\x1b[33m⚠\x1b[0m --extension ignored: daemon already running. Use 'agent-browser close' first to restart with extensions.");
+            eprintln!("\x1b[33m⚠\x1b[0m --extension ignored: daemon already running. Use 'agent-browser-session close' first to restart with extensions.");
         }
         if flags.channel.is_some() {
-            eprintln!("\x1b[33m⚠\x1b[0m --channel ignored: daemon already running. Use 'agent-browser close' first to restart with new channel.");
+            eprintln!("\x1b[33m⚠\x1b[0m --channel ignored: daemon already running. Use 'agent-browser-session close' first to restart with new channel.");
         }
     }
 

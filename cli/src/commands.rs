@@ -37,7 +37,7 @@ impl ParseError {
             }
             ParseError::MissingArguments { context, usage } => {
                 format!(
-                    "Missing arguments for: {}\nUsage: agent-browser {}",
+                    "Missing arguments for: {}\nUsage: agent-browser-session {}",
                     context, usage
                 )
             }

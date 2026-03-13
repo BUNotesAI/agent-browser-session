@@ -150,9 +150,9 @@ pub fn print_command_help(command: &str) -> bool {
     let help = match command {
         // === Navigation ===
         "open" | "goto" | "navigate" => r##"
-agent-browser open - Navigate to a URL
+agent-browser-session open - Navigate to a URL
 
-Usage: agent-browser open <url>
+Usage: agent-browser-session open <url>
 
 Navigates the browser to the specified URL. If no protocol is provided,
 https:// is automatically prepended.
@@ -166,16 +166,16 @@ Global Options:
   --headed             Show browser window
 
 Examples:
-  agent-browser open example.com
-  agent-browser open https://github.com
-  agent-browser open localhost:3000
-  agent-browser open api.example.com --headers '{"Authorization": "Bearer token"}'
+  agent-browser-session open example.com
+  agent-browser-session open https://github.com
+  agent-browser-session open localhost:3000
+  agent-browser-session open api.example.com --headers '{"Authorization": "Bearer token"}'
     # ^ Headers only sent to api.example.com, not other domains
 "##,
         "back" => r##"
-agent-browser back - Navigate back in history
+agent-browser-session back - Navigate back in history
 
-Usage: agent-browser back
+Usage: agent-browser-session back
 
 Goes back one page in the browser history, equivalent to clicking
 the browser's back button.
@@ -185,12 +185,12 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser back
+  agent-browser-session back
 "##,
         "forward" => r##"
-agent-browser forward - Navigate forward in history
+agent-browser-session forward - Navigate forward in history
 
-Usage: agent-browser forward
+Usage: agent-browser-session forward
 
 Goes forward one page in the browser history, equivalent to clicking
 the browser's forward button.
@@ -200,12 +200,12 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser forward
+  agent-browser-session forward
 "##,
         "reload" => r##"
-agent-browser reload - Reload the current page
+agent-browser-session reload - Reload the current page
 
-Usage: agent-browser reload
+Usage: agent-browser-session reload
 
 Reloads the current page, equivalent to pressing F5 or clicking
 the browser's reload button.
@@ -215,14 +215,14 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser reload
+  agent-browser-session reload
 "##,
 
         // === Core Actions ===
         "click" => r##"
-agent-browser click - Click an element
+agent-browser-session click - Click an element
 
-Usage: agent-browser click <selector>
+Usage: agent-browser-session click <selector>
 
 Clicks on the specified element. The selector can be a CSS selector,
 XPath, or an element reference from snapshot (e.g., @e1).
@@ -232,15 +232,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser click "#submit-button"
-  agent-browser click @e1
-  agent-browser click "button.primary"
-  agent-browser click "//button[@type='submit']"
+  agent-browser-session click "#submit-button"
+  agent-browser-session click @e1
+  agent-browser-session click "button.primary"
+  agent-browser-session click "//button[@type='submit']"
 "##,
         "dblclick" => r##"
-agent-browser dblclick - Double-click an element
+agent-browser-session dblclick - Double-click an element
 
-Usage: agent-browser dblclick <selector>
+Usage: agent-browser-session dblclick <selector>
 
 Double-clicks on the specified element. Useful for text selection
 or triggering double-click handlers.
@@ -250,13 +250,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser dblclick "#editable-text"
-  agent-browser dblclick @e5
+  agent-browser-session dblclick "#editable-text"
+  agent-browser-session dblclick @e5
 "##,
         "fill" => r##"
-agent-browser fill - Clear and fill an input field
+agent-browser-session fill - Clear and fill an input field
 
-Usage: agent-browser fill <selector> <text>
+Usage: agent-browser-session fill <selector> <text>
 
 Clears the input field and fills it with the specified text.
 This replaces any existing content in the field.
@@ -266,14 +266,14 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser fill "#email" "user@example.com"
-  agent-browser fill @e3 "Hello World"
-  agent-browser fill "input[name='search']" "query"
+  agent-browser-session fill "#email" "user@example.com"
+  agent-browser-session fill @e3 "Hello World"
+  agent-browser-session fill "input[name='search']" "query"
 "##,
         "type" => r##"
-agent-browser type - Type text into an element
+agent-browser-session type - Type text into an element
 
-Usage: agent-browser type <selector> <text>
+Usage: agent-browser-session type <selector> <text>
 
 Types text into the specified element character by character.
 Unlike fill, this does not clear existing content first.
@@ -283,13 +283,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser type "#search" "hello"
-  agent-browser type @e2 "additional text"
+  agent-browser-session type "#search" "hello"
+  agent-browser-session type @e2 "additional text"
 "##,
         "hover" => r##"
-agent-browser hover - Hover over an element
+agent-browser-session hover - Hover over an element
 
-Usage: agent-browser hover <selector>
+Usage: agent-browser-session hover <selector>
 
 Moves the mouse to hover over the specified element. Useful for
 triggering hover states or dropdown menus.
@@ -299,13 +299,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser hover "#dropdown-trigger"
-  agent-browser hover @e4
+  agent-browser-session hover "#dropdown-trigger"
+  agent-browser-session hover @e4
 "##,
         "focus" => r##"
-agent-browser focus - Focus an element
+agent-browser-session focus - Focus an element
 
-Usage: agent-browser focus <selector>
+Usage: agent-browser-session focus <selector>
 
 Sets keyboard focus to the specified element.
 
@@ -314,13 +314,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser focus "#input-field"
-  agent-browser focus @e2
+  agent-browser-session focus "#input-field"
+  agent-browser-session focus @e2
 "##,
         "check" => r##"
-agent-browser check - Check a checkbox
+agent-browser-session check - Check a checkbox
 
-Usage: agent-browser check <selector>
+Usage: agent-browser-session check <selector>
 
 Checks a checkbox element. If already checked, no action is taken.
 
@@ -329,13 +329,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser check "#terms-checkbox"
-  agent-browser check @e7
+  agent-browser-session check "#terms-checkbox"
+  agent-browser-session check @e7
 "##,
         "uncheck" => r##"
-agent-browser uncheck - Uncheck a checkbox
+agent-browser-session uncheck - Uncheck a checkbox
 
-Usage: agent-browser uncheck <selector>
+Usage: agent-browser-session uncheck <selector>
 
 Unchecks a checkbox element. If already unchecked, no action is taken.
 
@@ -344,13 +344,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser uncheck "#newsletter-opt-in"
-  agent-browser uncheck @e8
+  agent-browser-session uncheck "#newsletter-opt-in"
+  agent-browser-session uncheck @e8
 "##,
         "select" => r##"
-agent-browser select - Select a dropdown option
+agent-browser-session select - Select a dropdown option
 
-Usage: agent-browser select <selector> <value>
+Usage: agent-browser-session select <selector> <value>
 
 Selects an option in a <select> dropdown by its value attribute.
 
@@ -359,13 +359,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser select "#country" "US"
-  agent-browser select @e5 "option2"
+  agent-browser-session select "#country" "US"
+  agent-browser-session select @e5 "option2"
 "##,
         "drag" => r##"
-agent-browser drag - Drag and drop
+agent-browser-session drag - Drag and drop
 
-Usage: agent-browser drag <source> <target>
+Usage: agent-browser-session drag <source> <target>
 
 Drags an element from source to target location.
 
@@ -374,13 +374,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser drag "#draggable" "#drop-zone"
-  agent-browser drag @e1 @e2
+  agent-browser-session drag "#draggable" "#drop-zone"
+  agent-browser-session drag @e1 @e2
 "##,
         "upload" => r##"
-agent-browser upload - Upload files
+agent-browser-session upload - Upload files
 
-Usage: agent-browser upload <selector> <files...>
+Usage: agent-browser-session upload <selector> <files...>
 
 Uploads one or more files to a file input element.
 
@@ -389,15 +389,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser upload "#file-input" ./document.pdf
-  agent-browser upload @e3 ./image1.png ./image2.png
+  agent-browser-session upload "#file-input" ./document.pdf
+  agent-browser-session upload @e3 ./image1.png ./image2.png
 "##,
 
         // === Keyboard ===
         "press" | "key" => r##"
-agent-browser press - Press a key or key combination
+agent-browser-session press - Press a key or key combination
 
-Usage: agent-browser press <key>
+Usage: agent-browser-session press <key>
 
 Presses a key or key combination. Supports special keys and modifiers.
 
@@ -417,16 +417,16 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser press Enter
-  agent-browser press Tab
-  agent-browser press Control+a
-  agent-browser press Control+Shift+s
-  agent-browser press Escape
+  agent-browser-session press Enter
+  agent-browser-session press Tab
+  agent-browser-session press Control+a
+  agent-browser-session press Control+Shift+s
+  agent-browser-session press Escape
 "##,
         "keydown" => r##"
-agent-browser keydown - Press a key down (without release)
+agent-browser-session keydown - Press a key down (without release)
 
-Usage: agent-browser keydown <key>
+Usage: agent-browser-session keydown <key>
 
 Presses a key down without releasing it. Use keyup to release.
 Useful for holding modifier keys.
@@ -436,13 +436,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser keydown Shift
-  agent-browser keydown Control
+  agent-browser-session keydown Shift
+  agent-browser-session keydown Control
 "##,
         "keyup" => r##"
-agent-browser keyup - Release a key
+agent-browser-session keyup - Release a key
 
-Usage: agent-browser keyup <key>
+Usage: agent-browser-session keyup <key>
 
 Releases a key that was pressed with keydown.
 
@@ -451,15 +451,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser keyup Shift
-  agent-browser keyup Control
+  agent-browser-session keyup Shift
+  agent-browser-session keyup Control
 "##,
 
         // === Scroll ===
         "scroll" => r##"
-agent-browser scroll - Scroll the page
+agent-browser-session scroll - Scroll the page
 
-Usage: agent-browser scroll [direction] [amount]
+Usage: agent-browser-session scroll [direction] [amount]
 
 Scrolls the page in the specified direction.
 
@@ -472,15 +472,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser scroll
-  agent-browser scroll down 500
-  agent-browser scroll up 200
-  agent-browser scroll left 100
+  agent-browser-session scroll
+  agent-browser-session scroll down 500
+  agent-browser-session scroll up 200
+  agent-browser-session scroll left 100
 "##,
         "scrollintoview" | "scrollinto" => r##"
-agent-browser scrollintoview - Scroll element into view
+agent-browser-session scrollintoview - Scroll element into view
 
-Usage: agent-browser scrollintoview <selector>
+Usage: agent-browser-session scrollintoview <selector>
 
 Scrolls the page until the specified element is visible in the viewport.
 
@@ -491,15 +491,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser scrollintoview "#footer"
-  agent-browser scrollintoview @e15
+  agent-browser-session scrollintoview "#footer"
+  agent-browser-session scrollintoview @e15
 "##,
 
         // === Wait ===
         "wait" => r##"
-agent-browser wait - Wait for condition
+agent-browser-session wait - Wait for condition
 
-Usage: agent-browser wait <selector|ms|option>
+Usage: agent-browser-session wait <selector|ms|option>
 
 Waits for an element to appear, a timeout, or other conditions.
 
@@ -516,19 +516,19 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser wait "#loading-spinner"
-  agent-browser wait 2000
-  agent-browser wait --url "**/dashboard"
-  agent-browser wait --load networkidle
-  agent-browser wait --fn "window.appReady === true"
-  agent-browser wait --text "Welcome back"
+  agent-browser-session wait "#loading-spinner"
+  agent-browser-session wait 2000
+  agent-browser-session wait --url "**/dashboard"
+  agent-browser-session wait --load networkidle
+  agent-browser-session wait --fn "window.appReady === true"
+  agent-browser-session wait --text "Welcome back"
 "##,
 
         // === Screenshot/PDF ===
         "screenshot" => r##"
-agent-browser screenshot - Take a screenshot
+agent-browser-session screenshot - Take a screenshot
 
-Usage: agent-browser screenshot [path]
+Usage: agent-browser-session screenshot [path]
 
 Captures a screenshot of the current page. If no path is provided,
 outputs base64-encoded image data.
@@ -541,14 +541,14 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser screenshot
-  agent-browser screenshot ./screenshot.png
-  agent-browser screenshot --full ./full-page.png
+  agent-browser-session screenshot
+  agent-browser-session screenshot ./screenshot.png
+  agent-browser-session screenshot --full ./full-page.png
 "##,
         "pdf" => r##"
-agent-browser pdf - Save page as PDF
+agent-browser-session pdf - Save page as PDF
 
-Usage: agent-browser pdf <path>
+Usage: agent-browser-session pdf <path>
 
 Saves the current page as a PDF file.
 
@@ -557,15 +557,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser pdf ./page.pdf
-  agent-browser pdf ~/Documents/report.pdf
+  agent-browser-session pdf ./page.pdf
+  agent-browser-session pdf ~/Documents/report.pdf
 "##,
 
         // === Snapshot ===
         "snapshot" => r##"
-agent-browser snapshot - Get accessibility tree snapshot
+agent-browser-session snapshot - Get accessibility tree snapshot
 
-Usage: agent-browser snapshot [options]
+Usage: agent-browser-session snapshot [options]
 
 Returns an accessibility tree representation of the page with element
 references (like @e1, @e2) that can be used in subsequent commands.
@@ -582,17 +582,17 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser snapshot
-  agent-browser snapshot -i
-  agent-browser snapshot --compact --depth 5
-  agent-browser snapshot -s "#main-content"
+  agent-browser-session snapshot
+  agent-browser-session snapshot -i
+  agent-browser-session snapshot --compact --depth 5
+  agent-browser-session snapshot -s "#main-content"
 "##,
 
         // === Eval ===
         "eval" => r##"
-agent-browser eval - Execute JavaScript
+agent-browser-session eval - Execute JavaScript
 
-Usage: agent-browser eval <script>
+Usage: agent-browser-session eval <script>
 
 Executes JavaScript code in the browser context and returns the result.
 
@@ -601,16 +601,16 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser eval "document.title"
-  agent-browser eval "window.location.href"
-  agent-browser eval "document.querySelectorAll('a').length"
+  agent-browser-session eval "document.title"
+  agent-browser-session eval "window.location.href"
+  agent-browser-session eval "document.querySelectorAll('a').length"
 "##,
 
         // === Close ===
         "close" | "quit" | "exit" => r##"
-agent-browser close - Close the browser
+agent-browser-session close - Close the browser
 
-Usage: agent-browser close
+Usage: agent-browser-session close
 
 Closes the browser instance for the current session.
 
@@ -621,15 +621,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser close
-  agent-browser close --session mysession
+  agent-browser-session close
+  agent-browser-session close --session mysession
 "##,
 
         // === Get ===
         "get" => r##"
-agent-browser get - Retrieve information from elements or page
+agent-browser-session get - Retrieve information from elements or page
 
-Usage: agent-browser get <subcommand> [args]
+Usage: agent-browser-session get <subcommand> [args]
 
 Retrieves various types of information from elements or the page.
 
@@ -648,21 +648,21 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser get text @e1
-  agent-browser get html "#content"
-  agent-browser get value "#email-input"
-  agent-browser get attr "#link" href
-  agent-browser get title
-  agent-browser get url
-  agent-browser get count "li.item"
-  agent-browser get box "#header"
+  agent-browser-session get text @e1
+  agent-browser-session get html "#content"
+  agent-browser-session get value "#email-input"
+  agent-browser-session get attr "#link" href
+  agent-browser-session get title
+  agent-browser-session get url
+  agent-browser-session get count "li.item"
+  agent-browser-session get box "#header"
 "##,
 
         // === Is ===
         "is" => r##"
-agent-browser is - Check element state
+agent-browser-session is - Check element state
 
-Usage: agent-browser is <subcommand> <selector>
+Usage: agent-browser-session is <subcommand> <selector>
 
 Checks the state of an element and returns true/false.
 
@@ -676,16 +676,16 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser is visible "#modal"
-  agent-browser is enabled "#submit-btn"
-  agent-browser is checked "#agree-checkbox"
+  agent-browser-session is visible "#modal"
+  agent-browser-session is enabled "#submit-btn"
+  agent-browser-session is checked "#agree-checkbox"
 "##,
 
         // === Find ===
         "find" => r##"
-agent-browser find - Find and interact with elements by locator
+agent-browser-session find - Find and interact with elements by locator
 
-Usage: agent-browser find <locator> <value> [action] [text]
+Usage: agent-browser-session find <locator> <value> [action] [text]
 
 Finds elements using semantic locators and optionally performs an action.
 
@@ -713,20 +713,20 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser find role button click --name Submit
-  agent-browser find text "Sign In" click
-  agent-browser find label "Email" fill "user@example.com"
-  agent-browser find placeholder "Search..." type "query"
-  agent-browser find testid "login-form" click
-  agent-browser find first "li.item" click
-  agent-browser find nth 2 ".card" hover
+  agent-browser-session find role button click --name Submit
+  agent-browser-session find text "Sign In" click
+  agent-browser-session find label "Email" fill "user@example.com"
+  agent-browser-session find placeholder "Search..." type "query"
+  agent-browser-session find testid "login-form" click
+  agent-browser-session find first "li.item" click
+  agent-browser-session find nth 2 ".card" hover
 "##,
 
         // === Mouse ===
         "mouse" => r##"
-agent-browser mouse - Low-level mouse operations
+agent-browser-session mouse - Low-level mouse operations
 
-Usage: agent-browser mouse <subcommand> [args]
+Usage: agent-browser-session mouse <subcommand> [args]
 
 Performs low-level mouse operations for precise control.
 
@@ -741,19 +741,19 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser mouse move 100 200
-  agent-browser mouse down
-  agent-browser mouse up
-  agent-browser mouse down right
-  agent-browser mouse wheel 100
-  agent-browser mouse wheel -50 0
+  agent-browser-session mouse move 100 200
+  agent-browser-session mouse down
+  agent-browser-session mouse up
+  agent-browser-session mouse down right
+  agent-browser-session mouse wheel 100
+  agent-browser-session mouse wheel -50 0
 "##,
 
         // === Set ===
         "set" => r##"
-agent-browser set - Configure browser settings
+agent-browser-session set - Configure browser settings
 
-Usage: agent-browser set <setting> [args]
+Usage: agent-browser-session set <setting> [args]
 
 Configures various browser settings and emulation options.
 
@@ -772,21 +772,21 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser set viewport 1920 1080
-  agent-browser set device "iPhone 12"
-  agent-browser set geo 37.7749 -122.4194
-  agent-browser set offline on
-  agent-browser set headers '{"X-Custom": "value"}'
-  agent-browser set credentials admin secret123
-  agent-browser set media dark
-  agent-browser set media light reduced-motion
+  agent-browser-session set viewport 1920 1080
+  agent-browser-session set device "iPhone 12"
+  agent-browser-session set geo 37.7749 -122.4194
+  agent-browser-session set offline on
+  agent-browser-session set headers '{"X-Custom": "value"}'
+  agent-browser-session set credentials admin secret123
+  agent-browser-session set media dark
+  agent-browser-session set media light reduced-motion
 "##,
 
         // === Network ===
         "network" => r##"
-agent-browser network - Network interception and monitoring
+agent-browser-session network - Network interception and monitoring
 
-Usage: agent-browser network <subcommand> [args]
+Usage: agent-browser-session network <subcommand> [args]
 
 Intercept, mock, or monitor network requests.
 
@@ -804,19 +804,19 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser network route "**/api/*" --abort
-  agent-browser network route "**/data.json" --body '{"mock": true}'
-  agent-browser network unroute
-  agent-browser network requests
-  agent-browser network requests --filter "api"
-  agent-browser network requests --clear
+  agent-browser-session network route "**/api/*" --abort
+  agent-browser-session network route "**/data.json" --body '{"mock": true}'
+  agent-browser-session network unroute
+  agent-browser-session network requests
+  agent-browser-session network requests --filter "api"
+  agent-browser-session network requests --clear
 "##,
 
         // === Storage ===
         "storage" => r##"
-agent-browser storage - Manage web storage
+agent-browser-session storage - Manage web storage
 
-Usage: agent-browser storage <type> [operation] [key] [value]
+Usage: agent-browser-session storage <type> [operation] [key] [value]
 
 Manage localStorage and sessionStorage.
 
@@ -834,18 +834,18 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser storage local
-  agent-browser storage local get authToken
-  agent-browser storage local set theme "dark"
-  agent-browser storage local clear
-  agent-browser storage session get userId
+  agent-browser-session storage local
+  agent-browser-session storage local get authToken
+  agent-browser-session storage local set theme "dark"
+  agent-browser-session storage local clear
+  agent-browser-session storage session get userId
 "##,
 
         // === Cookies ===
         "cookies" => r##"
-agent-browser cookies - Manage browser cookies
+agent-browser-session cookies - Manage browser cookies
 
-Usage: agent-browser cookies [operation] [args]
+Usage: agent-browser-session cookies [operation] [args]
 
 Manage browser cookies for the current context.
 
@@ -859,17 +859,17 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser cookies
-  agent-browser cookies get
-  agent-browser cookies set session_id "abc123"
-  agent-browser cookies clear
+  agent-browser-session cookies
+  agent-browser-session cookies get
+  agent-browser-session cookies set session_id "abc123"
+  agent-browser-session cookies clear
 "##,
 
         // === Tabs ===
         "tab" => r##"
-agent-browser tab - Manage browser tabs
+agent-browser-session tab - Manage browser tabs
 
-Usage: agent-browser tab [operation] [args]
+Usage: agent-browser-session tab [operation] [args]
 
 Manage browser tabs in the current window.
 
@@ -884,20 +884,20 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser tab
-  agent-browser tab list
-  agent-browser tab new
-  agent-browser tab new https://example.com
-  agent-browser tab 2
-  agent-browser tab close
-  agent-browser tab close 1
+  agent-browser-session tab
+  agent-browser-session tab list
+  agent-browser-session tab new
+  agent-browser-session tab new https://example.com
+  agent-browser-session tab 2
+  agent-browser-session tab close
+  agent-browser-session tab close 1
 "##,
 
         // === Window ===
         "window" => r##"
-agent-browser window - Manage browser windows
+agent-browser-session window - Manage browser windows
 
-Usage: agent-browser window <operation>
+Usage: agent-browser-session window <operation>
 
 Note: window operations are not supported in persistent context mode.
 Use 'tab new' to open additional pages in the same context.
@@ -912,9 +912,9 @@ Global Options:
 
         // === Frame ===
         "frame" => r##"
-agent-browser frame - Switch frame context
+agent-browser-session frame - Switch frame context
 
-Usage: agent-browser frame <selector|main>
+Usage: agent-browser-session frame <selector|main>
 
 Switch to an iframe or back to the main frame.
 
@@ -927,16 +927,16 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser frame "#embed-iframe"
-  agent-browser frame "iframe[name='content']"
-  agent-browser frame main
+  agent-browser-session frame "#embed-iframe"
+  agent-browser-session frame "iframe[name='content']"
+  agent-browser-session frame main
 "##,
 
         // === Dialog ===
         "dialog" => r##"
-agent-browser dialog - Handle browser dialogs
+agent-browser-session dialog - Handle browser dialogs
 
-Usage: agent-browser dialog <response> [text]
+Usage: agent-browser-session dialog <response> [text]
 
 Respond to browser dialogs (alert, confirm, prompt).
 
@@ -949,16 +949,16 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser dialog accept
-  agent-browser dialog accept "my input"
-  agent-browser dialog dismiss
+  agent-browser-session dialog accept
+  agent-browser-session dialog accept "my input"
+  agent-browser-session dialog dismiss
 "##,
 
         // === Trace ===
         "trace" => r##"
-agent-browser trace - Record execution trace
+agent-browser-session trace - Record execution trace
 
-Usage: agent-browser trace <operation> [path]
+Usage: agent-browser-session trace <operation> [path]
 
 Record a trace for debugging with Trace Viewer.
 
@@ -971,17 +971,17 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser trace start
-  agent-browser trace start ./my-trace
-  agent-browser trace stop
-  agent-browser trace stop ./debug-trace.zip
+  agent-browser-session trace start
+  agent-browser-session trace start ./my-trace
+  agent-browser-session trace stop
+  agent-browser-session trace stop ./debug-trace.zip
 "##,
 
         // === Console/Errors ===
         "console" => r##"
-agent-browser console - View console logs
+agent-browser-session console - View console logs
 
-Usage: agent-browser console [--clear]
+Usage: agent-browser-session console [--clear]
 
 View browser console output (log, warn, error, info).
 
@@ -996,13 +996,13 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser console
-  agent-browser console --clear
+  agent-browser-session console
+  agent-browser-session console --clear
 "##,
         "errors" => r##"
-agent-browser errors - View page errors
+agent-browser-session errors - View page errors
 
-Usage: agent-browser errors [--clear]
+Usage: agent-browser-session errors [--clear]
 
 View JavaScript errors and uncaught exceptions.
 
@@ -1014,15 +1014,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser errors
-  agent-browser errors --clear
+  agent-browser-session errors
+  agent-browser-session errors --clear
 "##,
 
         // === Highlight ===
         "highlight" => r##"
-agent-browser highlight - Highlight an element
+agent-browser-session highlight - Highlight an element
 
-Usage: agent-browser highlight <selector>
+Usage: agent-browser-session highlight <selector>
 
 Visually highlights an element on the page for debugging.
 
@@ -1031,15 +1031,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser highlight "#target-element"
-  agent-browser highlight @e5
+  agent-browser-session highlight "#target-element"
+  agent-browser-session highlight @e5
 "##,
 
         // === State ===
         "state" => r##"
-agent-browser state - Save/load browser state
+agent-browser-session state - Save/load browser state
 
-Usage: agent-browser state <operation> <path>
+Usage: agent-browser-session state <operation> <path>
 
 Save or restore browser state (cookies, localStorage, sessionStorage).
 
@@ -1052,15 +1052,15 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser state save ./auth-state.json
-  agent-browser state load ./auth-state.json
+  agent-browser-session state save ./auth-state.json
+  agent-browser-session state load ./auth-state.json
 "##,
 
         // === Session ===
         "session" => r##"
-agent-browser session - Manage sessions
+agent-browser-session session - Manage sessions
 
-Usage: agent-browser session [operation]
+Usage: agent-browser-session session [operation]
 
 Manage isolated browser sessions. Each session has its own browser
 instance with separate cookies, storage, and state.
@@ -1077,16 +1077,16 @@ Global Options:
   --session <name>     Use specific session
 
 Examples:
-  agent-browser session
-  agent-browser session list
-  agent-browser --session test open example.com
+  agent-browser-session session
+  agent-browser-session session list
+  agent-browser-session --session test open example.com
 "##,
 
         // === Install ===
         "install" => r##"
-agent-browser install - Install browser binaries
+agent-browser-session install - Install browser binaries
 
-Usage: agent-browser install [--with-deps]
+Usage: agent-browser-session install [--with-deps]
 
 Downloads and installs browser binaries required for automation.
 
@@ -1094,8 +1094,8 @@ Options:
   -d, --with-deps      Also install system dependencies (Linux only)
 
 Examples:
-  agent-browser install
-  agent-browser install --with-deps
+  agent-browser-session install
+  agent-browser-session install --with-deps
 "##,
 
         _ => return false,
@@ -1107,9 +1107,9 @@ Examples:
 pub fn print_help() {
     println!(
         r#"
-agent-browser - fast browser automation CLI for AI agents
+agent-browser-session - fast browser automation CLI for AI agents
 
-Usage: agent-browser <command> [args] [options]
+Usage: agent-browser-session <command> [args] [options]
 
 Core Commands:
   open <url>                 Navigate to URL
@@ -1139,24 +1139,24 @@ Navigation:
   forward                    Go forward
   reload                     Reload page
 
-Get Info:  agent-browser get <what> [selector]
+Get Info:  agent-browser-session get <what> [selector]
   text, html, value, attr <name>, title, url, count, box
 
-Check State:  agent-browser is <what> <selector>
+Check State:  agent-browser-session is <what> <selector>
   visible, enabled, checked
 
-Find Elements:  agent-browser find <locator> <value> <action> [text]
+Find Elements:  agent-browser-session find <locator> <value> <action> [text]
   role, text, label, placeholder, alt, title, testid, first, last, nth
 
-Mouse:  agent-browser mouse <action> [args]
+Mouse:  agent-browser-session mouse <action> [args]
   move <x> <y>, down [btn], up [btn], wheel <dy> [dx]
 
-Browser Settings:  agent-browser set <setting> [value]
+Browser Settings:  agent-browser-session set <setting> [value]
   viewport <w> <h>, device <name>, geo <lat> <lng>
   offline [on|off], headers <json>, credentials <user> <pass>
   media [dark|light] [reduced-motion]
 
-Network:  agent-browser network <action>
+Network:  agent-browser-session network <action>
   route <url> [--abort|--body <json>]
   unroute [url]
   requests [--clear] [--filter <pattern>]
@@ -1201,7 +1201,7 @@ Options:
   --cdp <port>               Connect via CDP (Chrome DevTools Protocol)
   --debug                    Debug output
 
-Note: By default, agent-browser uses your system Chrome for better compatibility
+Note: By default, agent-browser-session uses your system Chrome for better compatibility
 with existing browser profiles. Use --bundled to use the bundled Chrome for Testing.
 
 Environment:
@@ -1210,14 +1210,14 @@ Environment:
   AGENT_BROWSER_STREAM_PORT      Enable WebSocket streaming on port (e.g., 9223)
 
 Examples:
-  agent-browser open example.com
-  agent-browser snapshot -i              # Interactive elements only
-  agent-browser click @e2                # Click by ref from snapshot
-  agent-browser fill @e3 "test@example.com"
-  agent-browser find role button click --name Submit
-  agent-browser get text @e1
-  agent-browser screenshot --full
-  agent-browser --cdp 9222 snapshot      # Connect via CDP port
+  agent-browser-session open example.com
+  agent-browser-session snapshot -i              # Interactive elements only
+  agent-browser-session click @e2                # Click by ref from snapshot
+  agent-browser-session fill @e3 "test@example.com"
+  agent-browser-session find role button click --name Submit
+  agent-browser-session get text @e1
+  agent-browser-session screenshot --full
+  agent-browser-session --cdp 9222 snapshot      # Connect via CDP port
 "#
     );
 }
