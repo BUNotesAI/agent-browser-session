@@ -154,9 +154,9 @@ fn main() {
         }
     };
 
-    if let Some(ref tab_name) = flags.tab_name {
-        cmd["tabName"] = json!(tab_name);
-    }
+    // Every command gets a tabName — default to ZEROTABPAGE for unified routing
+    let tab_name = flags.tab_name.as_deref().unwrap_or("ZEROTABPAGE");
+    cmd["tabName"] = json!(tab_name);
 
     let daemon_result = match ensure_daemon(&flags.session, flags.headed, flags.executable_path.as_deref(), &flags.extensions, flags.channel.as_deref()) {
         Ok(result) => result,
@@ -221,9 +221,7 @@ fn main() {
             "action": "launch",
             "cdpPort": cdp_port
         });
-        if let Some(ref tab_name) = flags.tab_name {
-            launch_cmd["tabName"] = json!(tab_name);
-        }
+        launch_cmd["tabName"] = json!(tab_name);
 
         let err = match send_command(launch_cmd, &flags.session) {
             Ok(resp) if resp.success => None,
@@ -255,9 +253,7 @@ fn main() {
         if let Some(path) = &flags.executable_path {
             launch_cmd["executablePath"] = json!(path);
         }
-        if let Some(ref tab_name) = flags.tab_name {
-            launch_cmd["tabName"] = json!(tab_name);
-        }
+        launch_cmd["tabName"] = json!(tab_name);
         if let Err(e) = send_command(launch_cmd, &flags.session) {
             if !flags.json {
                 eprintln!("\x1b[33m⚠\x1b[0m Could not launch browser: {}", e);
