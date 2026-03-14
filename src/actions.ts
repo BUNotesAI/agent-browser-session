@@ -1,4 +1,4 @@
-import type { Page, Frame } from './browser-engine.js';
+import type { Page, Frame, Locator } from './browser-engine.js';
 import type { BrowserManager, ScreencastFrame } from './browser.js';
 import type {
   Command,
@@ -112,6 +112,53 @@ import type {
   InputEventData,
 } from './types.js';
 import { successResponse, errorResponse } from './protocol.js';
+
+// ---------------------------------------------------------------------------
+// Tab-aware helpers — route to the correct page/frame/locator based on tabName
+// ---------------------------------------------------------------------------
+
+/**
+ * Get the target page for a command — routes by tabName if present.
+ */
+async function getTargetPage(
+  command: { tabName?: string },
+  browser: BrowserManager
+): Promise<Page> {
+  if (command.tabName) {
+    const binding = await browser.getOrCreateTab(command.tabName);
+    return binding.page;
+  }
+  return browser.getPage();
+}
+
+/**
+ * Get the target frame for a command — uses tab-specific frame if tabName present.
+ */
+async function getTargetFrame(
+  command: { tabName?: string },
+  browser: BrowserManager
+): Promise<Frame> {
+  if (command.tabName) {
+    const binding = await browser.getOrCreateTab(command.tabName);
+    if (binding.activeFrame) return binding.activeFrame;
+    return binding.page.mainFrame();
+  }
+  return browser.getFrame();
+}
+
+/**
+ * Get a locator scoped to the correct tab.
+ */
+async function getTargetLocator(
+  selectorOrRef: string,
+  command: { tabName?: string },
+  browser: BrowserManager
+): Promise<Locator> {
+  if (command.tabName) {
+    return browser.getLocatorForTab(selectorOrRef, command.tabName);
+  }
+  return browser.getLocator(selectorOrRef);
+}
 
 // Callback for screencast frames - will be set by the daemon when streaming is active
 let screencastFrameCallback: ((frame: ScreencastFrame) => void) | null = null;
@@ -451,7 +498,7 @@ async function handleNavigate(
   command: NavigateCommand,
   browser: BrowserManager
 ): Promise<Response<NavigateData>> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   // Rate limiting: delay before navigation to be server-friendly
   const navigationDelay = browser.getNavigationDelay();
@@ -476,7 +523,7 @@ async function handleNavigate(
 
 async function handleClick(command: ClickCommand, browser: BrowserManager): Promise<Response> {
   // Support both refs (@e1) and regular selectors
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
 
   try {
     await locator.click({
@@ -492,7 +539,7 @@ async function handleClick(command: ClickCommand, browser: BrowserManager): Prom
 }
 
 async function handleType(command: TypeCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
 
   try {
     if (command.clear) {
@@ -510,7 +557,7 @@ async function handleType(command: TypeCommand, browser: BrowserManager): Promis
 }
 
 async function handlePress(command: PressCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   if (command.selector) {
     await page.press(command.selector, command.key);
@@ -525,7 +572,7 @@ async function handleScreenshot(
   command: ScreenshotCommand,
   browser: BrowserManager
 ): Promise<Response<ScreenshotData>> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   const options: Parameters<Page['screenshot']>[0] = {
     fullPage: command.fullPage,
@@ -560,6 +607,27 @@ async function handleSnapshot(
   },
   browser: BrowserManager
 ): Promise<Response<SnapshotData>> {
+  // Tab-scoped snapshot: use tab-specific page and store refMap in TabBinding
+  if ((command as any).tabName) {
+    const binding = await browser.getOrCreateTab((command as any).tabName);
+    const { tree, refs } = await browser.getSnapshotForPage(binding.page, {
+      interactive: command.interactive,
+      maxDepth: command.maxDepth,
+      compact: command.compact,
+      selector: command.selector,
+    });
+    binding.refMap = refs;
+    binding.lastSnapshot = tree;
+    const simpleRefs: Record<string, { role: string; name?: string }> = {};
+    for (const [ref, data] of Object.entries(refs)) {
+      simpleRefs[ref] = { role: data.role, name: data.name };
+    }
+    return successResponse(command.id, {
+      snapshot: tree || 'Empty page',
+      refs: Object.keys(simpleRefs).length > 0 ? simpleRefs : undefined,
+    });
+  }
+
   // Use enhanced snapshot with refs and optional filtering
   const { tree, refs } = await browser.getSnapshot({
     interactive: command.interactive,
@@ -584,7 +652,7 @@ async function handleEvaluate(
   command: EvaluateCommand,
   browser: BrowserManager
 ): Promise<Response<EvaluateData>> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   // Evaluate the script directly as a string expression
   const result = await page.evaluate(command.script);
@@ -593,7 +661,7 @@ async function handleEvaluate(
 }
 
 async function handleWait(command: WaitCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   if (command.selector) {
     await page.waitForSelector(command.selector, {
@@ -611,7 +679,7 @@ async function handleWait(command: WaitCommand, browser: BrowserManager): Promis
 }
 
 async function handleScroll(command: ScrollCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   if (command.selector) {
     const element = page.locator(command.selector);
@@ -655,7 +723,7 @@ async function handleScroll(command: ScrollCommand, browser: BrowserManager): Pr
 }
 
 async function handleSelect(command: SelectCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   const values = Array.isArray(command.values) ? command.values : [command.values];
 
   try {
@@ -668,7 +736,7 @@ async function handleSelect(command: SelectCommand, browser: BrowserManager): Pr
 }
 
 async function handleHover(command: HoverCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   try {
     await locator.hover();
   } catch (error) {
@@ -682,7 +750,7 @@ async function handleContent(
   command: ContentCommand,
   browser: BrowserManager
 ): Promise<Response<ContentData>> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   let html: string;
   if (command.selector) {
@@ -698,6 +766,13 @@ async function handleClose(
   command: Command & { action: 'close' },
   browser: BrowserManager
 ): Promise<Response> {
+  if ((command as any).tabName) {
+    return errorResponse(
+      command.id,
+      'Cannot close browser: this is a shared browser instance with named tabs. ' +
+        'Close the browser manually when all work is done.'
+    );
+  }
   await browser.close();
   return successResponse(command.id, { closed: true });
 }
@@ -715,9 +790,11 @@ async function handleTabList(
   browser: BrowserManager
 ): Promise<Response<TabListData>> {
   const tabs = await browser.listTabs();
+  const namedTabs = await browser.listNamedTabs();
   return successResponse(command.id, {
     tabs,
     active: browser.getActiveIndex(),
+    ...(namedTabs.length > 0 ? { namedTabs } : {}),
   });
 }
 
@@ -726,7 +803,7 @@ async function handleTabSwitch(
   browser: BrowserManager
 ): Promise<Response<TabSwitchData>> {
   const result = await browser.switchTo(command.index);
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   return successResponse(command.id, {
     ...result,
     title: await page.title(),
@@ -752,7 +829,7 @@ async function handleWindowNew(
 // New handlers for enhanced Patchright parity
 
 async function handleFill(command: FillCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   try {
     await locator.fill(command.value);
   } catch (error) {
@@ -762,7 +839,7 @@ async function handleFill(command: FillCommand, browser: BrowserManager): Promis
 }
 
 async function handleCheck(command: CheckCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   try {
     await locator.check();
   } catch (error) {
@@ -772,7 +849,7 @@ async function handleCheck(command: CheckCommand, browser: BrowserManager): Prom
 }
 
 async function handleUncheck(command: UncheckCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   try {
     await locator.uncheck();
   } catch (error) {
@@ -782,7 +859,7 @@ async function handleUncheck(command: UncheckCommand, browser: BrowserManager): 
 }
 
 async function handleUpload(command: UploadCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   const files = Array.isArray(command.files) ? command.files : [command.files];
   try {
     await locator.setInputFiles(files);
@@ -796,7 +873,7 @@ async function handleDoubleClick(
   command: DoubleClickCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   try {
     await locator.dblclick();
   } catch (error) {
@@ -806,7 +883,7 @@ async function handleDoubleClick(
 }
 
 async function handleFocus(command: FocusCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   try {
     await locator.focus();
   } catch (error) {
@@ -816,12 +893,35 @@ async function handleFocus(command: FocusCommand, browser: BrowserManager): Prom
 }
 
 async function handleDrag(command: DragCommand, browser: BrowserManager): Promise<Response> {
-  const frame = browser.getFrame();
+  const frame = await getTargetFrame(command as any, browser);
   await frame.dragAndDrop(command.source, command.target);
   return successResponse(command.id, { dragged: true });
 }
 
 async function handleFrame(command: FrameCommand, browser: BrowserManager): Promise<Response> {
+  if ((command as any).tabName) {
+    const binding = await browser.getOrCreateTab((command as any).tabName);
+    const page = binding.page;
+
+    if (command.selector) {
+      const frameElement = await page.$(command.selector);
+      if (!frameElement) throw new Error(`Frame not found: ${command.selector}`);
+      const frame = await frameElement.contentFrame();
+      if (!frame) throw new Error(`Element is not a frame: ${command.selector}`);
+      binding.activeFrame = frame;
+    } else if (command.name) {
+      const frame = page.frame({ name: command.name });
+      if (!frame) throw new Error(`Frame not found with name: ${command.name}`);
+      binding.activeFrame = frame;
+    } else if (command.url) {
+      const frame = page.frame({ url: command.url });
+      if (!frame) throw new Error(`Frame not found with URL: ${command.url}`);
+      binding.activeFrame = frame;
+    }
+
+    return successResponse(command.id, { switched: true });
+  }
+
   await browser.switchToFrame({
     selector: command.selector,
     name: command.name,
@@ -834,6 +934,11 @@ async function handleMainFrame(
   command: Command & { action: 'mainframe' },
   browser: BrowserManager
 ): Promise<Response> {
+  if ((command as any).tabName) {
+    const binding = await browser.getOrCreateTab((command as any).tabName);
+    binding.activeFrame = null;
+    return successResponse(command.id, { switched: true });
+  }
   browser.switchToMainFrame();
   return successResponse(command.id, { switched: true });
 }
@@ -842,7 +947,7 @@ async function handleGetByRole(
   command: GetByRoleCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const locator = page.getByRole(command.role as any, { name: command.name });
 
   switch (command.subaction) {
@@ -865,7 +970,7 @@ async function handleGetByText(
   command: GetByTextCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const locator = page.getByText(command.text, { exact: command.exact });
 
   switch (command.subaction) {
@@ -882,7 +987,7 @@ async function handleGetByLabel(
   command: GetByLabelCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const locator = page.getByLabel(command.label);
 
   switch (command.subaction) {
@@ -902,7 +1007,7 @@ async function handleGetByPlaceholder(
   command: GetByPlaceholderCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const locator = page.getByPlaceholder(command.placeholder);
 
   switch (command.subaction) {
@@ -919,7 +1024,7 @@ async function handleCookiesGet(
   command: Command & { action: 'cookies_get'; urls?: string[] },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const context = page.context();
   const cookies = await context.cookies(command.urls);
   return successResponse(command.id, { cookies });
@@ -929,7 +1034,7 @@ async function handleCookiesSet(
   command: CookiesSetCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const context = page.context();
   // Auto-fill URL for cookies that don't have domain/path/url set
   const pageUrl = page.url();
@@ -947,7 +1052,7 @@ async function handleCookiesClear(
   command: Command & { action: 'cookies_clear' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const context = page.context();
   await context.clearCookies();
   return successResponse(command.id, { cleared: true });
@@ -957,7 +1062,7 @@ async function handleStorageGet(
   command: StorageGetCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const storageType = command.type === 'local' ? 'localStorage' : 'sessionStorage';
 
   if (command.key) {
@@ -983,7 +1088,7 @@ async function handleStorageSet(
   command: StorageSetCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const storageType = command.type === 'local' ? 'localStorage' : 'sessionStorage';
 
   await page.evaluate(
@@ -996,7 +1101,7 @@ async function handleStorageClear(
   command: StorageClearCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const storageType = command.type === 'local' ? 'localStorage' : 'sessionStorage';
 
   await page.evaluate(`${storageType}.clear()`);
@@ -1009,7 +1114,7 @@ async function handleDialog(command: DialogCommand, browser: BrowserManager): Pr
 }
 
 async function handlePdf(command: PdfCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.pdf({
     path: command.path,
     format: command.format ?? 'Letter',
@@ -1055,7 +1160,7 @@ async function handleDownload(
   command: DownloadCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
@@ -1106,7 +1211,7 @@ async function handleUserAgent(
   command: Command & { action: 'useragent'; userAgent: string },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const context = page.context();
   // Note: Can't change user agent after context is created, but we can for new pages
   return successResponse(command.id, {
@@ -1135,7 +1240,7 @@ async function handleBack(
   command: Command & { action: 'back' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.goBack();
   return successResponse(command.id, { url: page.url() });
 }
@@ -1144,7 +1249,7 @@ async function handleForward(
   command: Command & { action: 'forward' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.goForward();
   return successResponse(command.id, { url: page.url() });
 }
@@ -1153,7 +1258,7 @@ async function handleReload(
   command: Command & { action: 'reload' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.reload();
   return successResponse(command.id, { url: page.url() });
 }
@@ -1162,7 +1267,7 @@ async function handleUrl(
   command: Command & { action: 'url' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   return successResponse(command.id, { url: page.url() });
 }
 
@@ -1170,7 +1275,7 @@ async function handleTitle(
   command: Command & { action: 'title' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const title = await page.title();
   return successResponse(command.id, { title });
 }
@@ -1179,13 +1284,13 @@ async function handleGetAttribute(
   command: GetAttributeCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   const value = await locator.getAttribute(command.attribute);
   return successResponse(command.id, { attribute: command.attribute, value });
 }
 
 async function handleGetText(command: GetTextCommand, browser: BrowserManager): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   const text = await locator.textContent();
   return successResponse(command.id, { text });
 }
@@ -1194,7 +1299,7 @@ async function handleIsVisible(
   command: IsVisibleCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   const visible = await locator.isVisible();
   return successResponse(command.id, { visible });
 }
@@ -1203,7 +1308,7 @@ async function handleIsEnabled(
   command: IsEnabledCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   const enabled = await locator.isEnabled();
   return successResponse(command.id, { enabled });
 }
@@ -1212,13 +1317,13 @@ async function handleIsChecked(
   command: IsCheckedCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const locator = browser.getLocator(command.selector);
+  const locator = await getTargetLocator(command.selector, command as any, browser);
   const checked = await locator.isChecked();
   return successResponse(command.id, { checked });
 }
 
 async function handleCount(command: CountCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const count = await page.locator(command.selector).count();
   return successResponse(command.id, { count });
 }
@@ -1227,7 +1332,7 @@ async function handleBoundingBox(
   command: BoundingBoxCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const box = await page.locator(command.selector).boundingBox();
   return successResponse(command.id, { box });
 }
@@ -1250,7 +1355,7 @@ async function handleVideoStop(
   command: Command & { action: 'video_stop' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const video = page.video();
   if (video) {
     const path = await video.path();
@@ -1317,6 +1422,8 @@ async function handleStateLoad(
 }
 
 async function handleConsole(command: ConsoleCommand, browser: BrowserManager): Promise<Response> {
+  // Note: console messages are collected globally; tabName routing is a no-op here
+  // but we keep the pattern consistent for future per-tab console tracking
   if (command.clear) {
     browser.clearConsoleMessages();
     return successResponse(command.id, {
@@ -1346,13 +1453,13 @@ async function handleKeyboard(
   command: KeyboardCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.keyboard.press(command.keys);
   return successResponse(command.id, { pressed: command.keys });
 }
 
 async function handleWheel(command: WheelCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   if (command.selector) {
     const element = page.locator(command.selector);
@@ -1364,7 +1471,7 @@ async function handleWheel(command: WheelCommand, browser: BrowserManager): Prom
 }
 
 async function handleTap(command: TapCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.tap(command.selector);
   return successResponse(command.id, { tapped: true });
 }
@@ -1373,7 +1480,7 @@ async function handleClipboard(
   command: ClipboardCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   switch (command.operation) {
     case 'copy':
@@ -1394,13 +1501,13 @@ async function handleHighlight(
   command: HighlightCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.locator(command.selector).highlight();
   return successResponse(command.id, { highlighted: true });
 }
 
 async function handleClear(command: ClearCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.locator(command.selector).clear();
   return successResponse(command.id, { cleared: true });
 }
@@ -1409,7 +1516,7 @@ async function handleSelectAll(
   command: SelectAllCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.locator(command.selector).selectText();
   return successResponse(command.id, { selected: true });
 }
@@ -1418,7 +1525,7 @@ async function handleInnerText(
   command: InnerTextCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const text = await page.locator(command.selector).innerText();
   return successResponse(command.id, { text });
 }
@@ -1427,7 +1534,7 @@ async function handleInnerHtml(
   command: InnerHtmlCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const html = await page.locator(command.selector).innerHTML();
   return successResponse(command.id, { html });
 }
@@ -1436,7 +1543,7 @@ async function handleInputValue(
   command: InputValueCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const value = await page.locator(command.selector).inputValue();
   return successResponse(command.id, { value });
 }
@@ -1445,7 +1552,7 @@ async function handleSetValue(
   command: SetValueCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.locator(command.selector).fill(command.value);
   return successResponse(command.id, { set: true });
 }
@@ -1454,7 +1561,7 @@ async function handleDispatch(
   command: DispatchEventCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.locator(command.selector).dispatchEvent(command.event, command.eventInit);
   return successResponse(command.id, { dispatched: command.event });
 }
@@ -1463,7 +1570,7 @@ async function handleEvalHandle(
   command: Command & { action: 'evalhandle'; script: string },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const handle = await page.evaluateHandle(command.script);
   const result = await handle.jsonValue().catch(() => 'Handle (non-serializable)');
   return successResponse(command.id, { result });
@@ -1473,7 +1580,7 @@ async function handleExpose(
   command: Command & { action: 'expose'; name: string },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.exposeFunction(command.name, () => {
     // Exposed function - can be extended
     return `Function ${command.name} called`;
@@ -1485,7 +1592,7 @@ async function handleAddScript(
   command: AddScriptCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   if (command.content) {
     await page.addScriptTag({ content: command.content });
@@ -1500,7 +1607,7 @@ async function handleAddStyle(
   command: AddStyleCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
 
   if (command.content) {
     await page.addStyleTag({ content: command.content });
@@ -1515,7 +1622,7 @@ async function handleEmulateMedia(
   command: EmulateMediaCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.emulateMedia({
     media: command.media,
     colorScheme: command.colorScheme,
@@ -1539,7 +1646,7 @@ async function handlePause(
   command: Command & { action: 'pause' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.pause();
   return successResponse(command.id, { paused: true });
 }
@@ -1548,7 +1655,7 @@ async function handleGetByAltText(
   command: GetByAltTextCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const locator = page.getByAltText(command.text, { exact: command.exact });
 
   switch (command.subaction) {
@@ -1565,7 +1672,7 @@ async function handleGetByTitle(
   command: GetByTitleCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const locator = page.getByTitle(command.text, { exact: command.exact });
 
   switch (command.subaction) {
@@ -1582,7 +1689,7 @@ async function handleGetByTestId(
   command: GetByTestIdCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const locator = page.getByTestId(command.testId);
 
   switch (command.subaction) {
@@ -1602,7 +1709,7 @@ async function handleGetByTestId(
 }
 
 async function handleNth(command: NthCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const base = page.locator(command.selector);
   const locator = command.index === -1 ? base.last() : base.nth(command.index);
 
@@ -1629,7 +1736,7 @@ async function handleWaitForUrl(
   command: WaitForUrlCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.waitForURL(command.url, { timeout: command.timeout });
   return successResponse(command.id, { url: page.url() });
 }
@@ -1638,7 +1745,7 @@ async function handleWaitForLoadState(
   command: WaitForLoadStateCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.waitForLoadState(command.state, { timeout: command.timeout });
   return successResponse(command.id, { state: command.state });
 }
@@ -1647,7 +1754,7 @@ async function handleSetContent(
   command: SetContentCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.setContent(command.html);
   return successResponse(command.id, { set: true });
 }
@@ -1658,7 +1765,7 @@ async function handleTimezone(
 ): Promise<Response> {
   // Timezone must be set at context level before navigation
   // This is a limitation - it sets for the current context
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.context().setGeolocation({ latitude: 0, longitude: 0 }); // Trigger context awareness
   return successResponse(command.id, {
     note: 'Timezone must be set at browser launch. Use --timezone flag.',
@@ -1678,7 +1785,8 @@ async function handleCredentials(
   command: HttpCredentialsCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const context = browser.getPage().context();
+  const page = await getTargetPage(command as any, browser);
+  const context = page.context();
   await context.setHTTPCredentials({
     username: command.username,
     password: command.password,
@@ -1690,7 +1798,7 @@ async function handleMouseMove(
   command: MouseMoveCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.mouse.move(command.x, command.y);
   return successResponse(command.id, { moved: true, x: command.x, y: command.y });
 }
@@ -1699,13 +1807,13 @@ async function handleMouseDown(
   command: MouseDownCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.mouse.down({ button: command.button ?? 'left' });
   return successResponse(command.id, { down: true });
 }
 
 async function handleMouseUp(command: MouseUpCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.mouse.up({ button: command.button ?? 'left' });
   return successResponse(command.id, { up: true });
 }
@@ -1714,7 +1822,7 @@ async function handleBringToFront(
   command: Command & { action: 'bringtofront' },
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.bringToFront();
   return successResponse(command.id, { focused: true });
 }
@@ -1723,7 +1831,7 @@ async function handleWaitForFunction(
   command: WaitForFunctionCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.waitForFunction(command.expression, { timeout: command.timeout });
   return successResponse(command.id, { waited: true });
 }
@@ -1732,7 +1840,7 @@ async function handleScrollIntoView(
   command: ScrollIntoViewCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.locator(command.selector).scrollIntoViewIfNeeded();
   return successResponse(command.id, { scrolled: true });
 }
@@ -1741,19 +1849,20 @@ async function handleAddInitScript(
   command: AddInitScriptCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const context = browser.getPage().context();
+  const page = await getTargetPage(command as any, browser);
+  const context = page.context();
   await context.addInitScript(command.script);
   return successResponse(command.id, { added: true });
 }
 
 async function handleKeyDown(command: KeyDownCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.keyboard.down(command.key);
   return successResponse(command.id, { down: true, key: command.key });
 }
 
 async function handleKeyUp(command: KeyUpCommand, browser: BrowserManager): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.keyboard.up(command.key);
   return successResponse(command.id, { up: true, key: command.key });
 }
@@ -1762,7 +1871,7 @@ async function handleInsertText(
   command: InsertTextCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   await page.keyboard.insertText(command.text);
   return successResponse(command.id, { inserted: true });
 }
@@ -1771,7 +1880,7 @@ async function handleMultiSelect(
   command: MultiSelectCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const selected = await page.locator(command.selector).selectOption(command.values);
   return successResponse(command.id, { selected });
 }
@@ -1780,7 +1889,7 @@ async function handleWaitForDownload(
   command: WaitForDownloadCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const download = await page.waitForEvent('download', { timeout: command.timeout });
 
   let filePath: string;
@@ -1802,7 +1911,7 @@ async function handleResponseBody(
   command: ResponseBodyCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const page = browser.getPage();
+  const page = await getTargetPage(command as any, browser);
   const response = await page.waitForResponse((resp) => resp.url().includes(command.url), {
     timeout: command.timeout,
   });
