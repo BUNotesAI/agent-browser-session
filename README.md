@@ -1,16 +1,17 @@
 # agent-browser-session
 
-A fork of [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) optimized for **persistent login sessions**. Uses [Patchright](https://github.com/AjaxMultiCommentary/patchright) (anti-detection Playwright fork) + system Chrome + persistent userDataDir.
+A fork of [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) optimized for **persistent login sessions** and **multi-tab parallel operation**. Uses [Patchright](https://github.com/AjaxMultiCommentary/patchright) (anti-detection Playwright fork) + system Chrome + persistent userDataDir.
 
 ## Why This Fork?
 
 | | `agent-browser` (upstream) | `agent-browser-session` (this fork) |
 |---|---|---|
 | Browser | Bundled Chromium | System Chrome |
-| Profile | Ephemeral (lost on close) | Persistent (`~/tmp/agent-browser/{session}/`) |
+| Profile | Ephemeral (lost on close) | Persistent (`~/.agent-browser/headed-profile/main/`) |
 | Mode | Headless by default | Headed by default |
 | Anti-detection | Playwright (detectable) | Patchright (stealth) |
-| Best for | Quick scraping, no login | OAuth, login flows, session reuse |
+| Multi-tab | Shared `activePageIndex` (conflict) | `--tabname` isolation (parallel-safe) |
+| Best for | Quick scraping, no login | OAuth, login flows, multi-agent browsing |
 
 **Both can coexist** — install upstream via `npm i -g agent-browser` and this fork separately.
 
@@ -33,50 +34,61 @@ agent-browser-session snapshot -i               # Get interactive elements with 
 agent-browser-session click @e2                  # Click by ref
 agent-browser-session fill @e3 "test@example.com"
 agent-browser-session screenshot page.png
-agent-browser-session close
 ```
 
-## Sessions & Login Persistence
+## Login Persistence
 
-Each session gets its own Chrome profile directory. The default session is `main`.
+The browser profile is stored persistently. Login once, stay logged in across sessions.
 
 ```bash
-# Default: uses "main" session → ~/tmp/agent-browser/main/
+# First time: login manually in the browser window
 agent-browser-session open https://accounts.google.com
-# Login manually in the browser window...
-agent-browser-session close
 
-# Later: login state persists
+# Later: login state persists automatically
 agent-browser-session open https://mail.google.com  # Already logged in!
 ```
 
-### Multiple Sessions
+## Multi-Tab Isolation (`--tabname`)
 
-Use `--session` for parallel isolated profiles:
+Multiple CLI clients can operate independent tabs in the same browser instance. Each tab has its own Page, CDP session, snapshot refs, and frame context.
 
 ```bash
-# Each session has its own cookies, localStorage, login state
-agent-browser-session --session work open https://github.com
-agent-browser-session --session personal open https://github.com
+# Agent A: browse Reddit
+agent-browser-session --tabname reddit open https://reddit.com
+agent-browser-session --tabname reddit snapshot -i
+agent-browser-session --tabname reddit click @e5
 
-# List active sessions
-agent-browser-session session list
+# Agent B: simultaneously browse Hacker News (same browser, different tab)
+agent-browser-session --tabname hackernews open https://news.ycombinator.com
+agent-browser-session --tabname hackernews snapshot -i
+agent-browser-session --tabname hackernews click @e3
 ```
 
-**Note:** The same session name cannot run concurrently (Chrome locks the profile directory).
+Tab isolation guarantees:
 
-### Session Storage
+| Isolated per tab | Shared across tabs |
+|------------------|--------------------|
+| Page (DOM, URL) | Cookies, localStorage |
+| CDP session | Browser profile |
+| Snapshot refs (`@e1`, `@e2`) | Chrome process |
+| Frame context | |
 
-```
-~/tmp/agent-browser/
-├── main/          ← default session (persistent login)
-├── work/          ← custom session
-└── site1/         ← another custom session
+Without `--tabname`, commands default to a built-in `ZEROTABPAGE` tab — this is always safe and backward-compatible.
+
+### Concurrent Operation
+
+Named tabs support true parallel operation:
+
+```bash
+# Run simultaneously — both navigate at the same time
+agent-browser-session --tabname tab-a open https://reddit.com &
+agent-browser-session --tabname tab-b open https://news.ycombinator.com &
+wait
 ```
 
 ## Commands
 
-All commands are identical to upstream `agent-browser`. See the [upstream README](https://github.com/vercel-labs/agent-browser#readme) for the full command reference.
+All commands are compatible with upstream `agent-browser`. See the [upstream README](https://github.com/vercel-labs/agent-browser#readme) for the full command reference.
 
 ### Core Commands
 
@@ -88,7 +100,6 @@ agent-browser-session press <key>             # Press key
 agent-browser-session snapshot                # Accessibility tree with refs
 agent-browser-session snapshot -i             # Interactive elements only
 agent-browser-session screenshot [path]       # Take screenshot
-agent-browser-session close                   # Close browser
 ```
 
 ### Get Info
@@ -110,7 +121,7 @@ agent-browser-session wait --url "**/dash"    # Wait for URL pattern
 ### Tabs
 
 ```bash
-agent-browser-session tab                     # List tabs
+agent-browser-session tab                     # List tabs (includes named tabs)
 agent-browser-session tab new [url]           # New tab
 agent-browser-session tab <n>                 # Switch to tab n
 agent-browser-session tab close [n]           # Close tab
@@ -127,16 +138,29 @@ agent-browser-session storage local           # Get localStorage
 
 | Option | Description |
 |--------|-------------|
-| `--session <name>` | Use named session (default: `main`) |
-| `--headed` | Show browser window (default: always headed) |
+| `--tabname <name>` | Named tab for client isolation (parallel-safe) |
+| `--headed [true\|false]` | Browser mode (default: `true`, use `--headed false` for headless) |
 | `--bundled` | Use bundled Chrome instead of system Chrome |
 | `--channel <name>` | Browser channel: `chrome`, `msedge`, `chrome-beta` |
 | `--executable-path <path>` | Custom browser executable |
 | `--json` | JSON output for agents |
+| `--version`, `-V` | Show version |
+
+## Headed / Headless Mode
+
+Default is **headed** (visible browser window). Headed and headless profiles are physically isolated to prevent headless from polluting auth cookies.
+
+```bash
+# Headed (default) — uses ~/.agent-browser/headed-profile/main/
+agent-browser-session open https://example.com
+
+# Headless — uses ~/.agent-browser/headless-profile/main/
+agent-browser-session --headed false open https://example.com
+```
 
 ## Rate Limiting
 
-To be friendly to target servers, agent-browser-session adds a **5-second delay** before each navigation by default.
+A **5-second delay** before each navigation by default, to be friendly to target servers.
 
 ```bash
 # Disable delay for faster testing
@@ -150,34 +174,58 @@ AGENT_BROWSER_NAV_DELAY_MS=2000 agent-browser-session open example.com
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AGENT_BROWSER_SESSION` | Session name | `main` |
+| `AGENT_BROWSER_TABNAME` | Named tab for isolation | `ZEROTABPAGE` |
+| `AGENT_BROWSER_HEADED` | Browser mode | `true` |
 | `AGENT_BROWSER_NAV_DELAY_MS` | Navigation delay (ms) | `5000` |
 | `AGENT_BROWSER_EXECUTABLE_PATH` | Custom browser path | system Chrome |
 | `AGENT_BROWSER_STREAM_PORT` | WebSocket streaming port | disabled |
-| `AGENT_BROWSER_SOCKET_DIR` | Override socket directory | `~/.agent-browser` |
+| `AGENT_BROWSER_SOCKET_DIR` | Override base directory | `~/.agent-browser` |
 
 ## Architecture
 
 ```
-┌─────────────────┐     Unix Socket      ┌──────────────────┐
-│  Rust CLI        │◄───────────────────►│  Node.js Daemon   │
-│  (fast startup)  │  ~/.agent-browser/   │  (Patchright)     │
-└─────────────────┘   main.sock          └──────────────────┘
-                                                   │
-                                          ┌────────┴────────┐
-                                          │  System Chrome   │
-                                          │  ~/tmp/agent-    │
-                                          │  browser/main/   │
-                                          └─────────────────┘
+┌──────────────────┐    Unix Socket     ┌───────────────────┐
+│  Rust CLI         │◄─────────────────►│  Node.js Daemon    │
+│  (fast startup)   │  ~/.agent-browser/ │  (Patchright)      │
+└──────────────────┘   sys/main.sock    └───────────────────┘
+                                                  │
+                                         tabBindings: Map
+                                          ┌───────┴───────┐
+                                          │ reddit  │ hn   │
+                                          │ Page    │ Page  │
+                                          │ CDP     │ CDP   │
+                                          │ RefMap  │ RefMap │
+                                          └─────────┴───────┘
+                                                  │
+                                         ┌────────┴────────┐
+                                         │  System Chrome    │
+                                         │  ~/.agent-browser │
+                                         │  /headed-profile/ │
+                                         │  main/            │
+                                         └──────────────────┘
 ```
 
-- **Rust CLI** — Fast native binary, parses commands, communicates with daemon
-- **Node.js Daemon** — Manages Patchright browser via persistent context
-- **Socket isolation** — `~/.agent-browser/` (not `/tmp/`), avoids TMPDIR issues
+### Directory Layout
+
+```
+~/.agent-browser/
+├── sys/                          ← IPC files (socket, pid)
+│   ├── main.sock
+│   └── main.pid
+├── headed-profile/               ← Headed browser data (cookies, auth)
+│   └── main/
+└── headless-profile/             ← Headless browser data (isolated)
+    └── main/
+```
+
+### Key Design Decisions
+
+- **Socket-only daemon detection** — No PID-based checking (avoids PID reuse false positives)
+- **Tabname as identity** — `--tabname` routes commands; no client ID or connection tracking needed
+- **Close disabled** — Browser is shared across tabs; close the window manually when done
+- **ZEROTABPAGE sentinel** — Commands without `--tabname` auto-assign to `ZEROTABPAGE`, ensuring all commands route through the same tab isolation path
 
 ## Using with Both Versions
-
-If you have upstream `agent-browser` installed alongside:
 
 ```bash
 # Quick scraping (upstream, headless, ephemeral)
@@ -188,6 +236,10 @@ agent-browser close
 # Login-required sites (this fork, headed, persistent)
 agent-browser-session open https://github.com/settings
 # Already logged in from previous session!
+
+# Multi-agent parallel browsing (this fork)
+agent-browser-session --tabname agent-1 open https://reddit.com &
+agent-browser-session --tabname agent-2 open https://news.ycombinator.com &
 ```
 
 ## Claude Code Skill
