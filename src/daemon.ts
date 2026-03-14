@@ -1,11 +1,11 @@
 import * as net from 'net';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { BrowserManager } from './browser.js';
 import { parseCommand, serializeResponse, errorResponse } from './protocol.js';
 import { executeCommand } from './actions.js';
 import { StreamServer } from './stream-server.js';
+import { getSysDir } from './paths.js';
 
 // Platform detection
 const isWindows = process.platform === 'win32';
@@ -14,32 +14,11 @@ const isWindows = process.platform === 'win32';
 let currentSession = process.env.AGENT_BROWSER_SESSION || 'main';
 
 /**
- * Get the base directory for socket/pid files.
- * Priority: AGENT_BROWSER_SOCKET_DIR > XDG_RUNTIME_DIR > ~/.agent-browser > tmpdir
- *
- * Using ~/.agent-browser instead of /tmp solves:
- * - User isolation (different users don't share sockets)
- * - TMPDIR inconsistency (tmux/screen/VSCode may use different TMPDIR)
+ * Get the directory for socket/pid files.
+ * Delegates to centralized paths module: ~/.agent-browser/sys/
  */
 export function getSocketDir(): string {
-  // 1. Explicit override
-  if (process.env.AGENT_BROWSER_SOCKET_DIR) {
-    return process.env.AGENT_BROWSER_SOCKET_DIR;
-  }
-
-  // 2. XDG_RUNTIME_DIR (Linux standard)
-  if (process.env.XDG_RUNTIME_DIR) {
-    return path.join(process.env.XDG_RUNTIME_DIR, 'agent-browser');
-  }
-
-  // 3. Home directory fallback
-  const homeDir = os.homedir();
-  if (homeDir) {
-    return path.join(homeDir, '.agent-browser');
-  }
-
-  // 4. Last resort: temp dir
-  return path.join(os.tmpdir(), 'agent-browser');
+  return getSysDir();
 }
 
 // Stream server for browser preview
@@ -260,6 +239,16 @@ export async function startDaemon(options?: { streamPort?: number }): Promise<vo
 
           // Handle close command specially - synchronous graceful shutdown
           if (parseResult.command.action === 'close') {
+            // Block close when tabName is present — browser is shared
+            if ((parseResult.command as any).tabName) {
+              const response = errorResponse(
+                parseResult.command.id,
+                'Cannot close browser: this is a shared browser instance with named tabs. ' +
+                  'Close the browser manually when all work is done.'
+              );
+              socket.write(serializeResponse(response) + '\n');
+              continue;
+            }
             if (!shuttingDown) {
               shuttingDown = true;
 
