@@ -60,17 +60,20 @@ jobs:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: cargo build --release --manifest-path cli/Cargo.toml --target ${{ matrix.target }}
 
-      - name: Setup Node.js
+      - name: Setup Node.js and pnpm
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
+      - name: Install pnpm
+        run: npm install -g pnpm
+
       - name: Install and build Node.js daemon
         run: |
-          npm ci --ignore-scripts
-          npx tsc
-          # Remove dev dependencies — only ship production deps in tarball
-          npm prune --production
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm build
+          # Re-install with production only
+          pnpm install --frozen-lockfile --ignore-scripts --prod
 
       - name: Package tarball
         run: |
@@ -84,6 +87,9 @@ jobs:
           cp -r dist/* staging/${{ matrix.artifact }}/dist/
           cp -r node_modules staging/${{ matrix.artifact }}/
           cp package.json staging/${{ matrix.artifact }}/
+
+          # Copy skills for install-skills command
+          cp -r skills staging/${{ matrix.artifact }}/
 
           # Create tarball
           cd staging
