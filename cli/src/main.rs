@@ -127,6 +127,54 @@ fn main() {
         return;
     }
 
+    // Handle kill — terminate all daemon processes and clean up
+    // This is for manual use only, NOT for agents (shared browser across tabnames)
+    if clean.get(0).map(|s| s.as_str()) == Some("kill") {
+        let socket_dir = get_socket_dir();
+        let mut killed = 0u32;
+
+        if let Ok(entries) = fs::read_dir(&socket_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(".pid") {
+                    let pid_path = socket_dir.join(&name);
+                    if let Ok(pid_str) = fs::read_to_string(&pid_path) {
+                        if let Ok(pid) = pid_str.trim().parse::<i32>() {
+                            #[cfg(unix)]
+                            {
+                                // Kill the daemon process and its children (browser)
+                                unsafe {
+                                    libc::kill(-pid, libc::SIGTERM); // kill process group
+                                    libc::kill(pid, libc::SIGTERM);
+                                }
+                            }
+                            #[cfg(windows)]
+                            {
+                                let _ = std::process::Command::new("taskkill")
+                                    .args(&["/PID", &pid.to_string(), "/T", "/F"])
+                                    .output();
+                            }
+                            killed += 1;
+                        }
+                    }
+                    let _ = fs::remove_file(&pid_path);
+                }
+                // Clean up socket files
+                if name.ends_with(".sock") {
+                    let _ = fs::remove_file(socket_dir.join(&name));
+                }
+            }
+        }
+
+        if killed > 0 {
+            eprintln!("\x1b[32m✓\x1b[0m Killed {} daemon process(es) and cleaned up socket files", killed);
+        } else {
+            eprintln!("No running daemons found");
+        }
+        eprintln!("\x1b[2m  Note: This is for manual use only. Agents should NOT call kill — the browser is shared across tabnames.\x1b[0m");
+        return;
+    }
+
     // Handle session separately (doesn't need daemon)
     if clean.get(0).map(|s| s.as_str()) == Some("session") {
         run_session(&clean, &flags.session, flags.json);

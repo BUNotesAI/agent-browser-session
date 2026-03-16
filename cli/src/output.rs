@@ -1076,6 +1076,27 @@ Examples:
   agent-browser-session session list
 "##,
 
+        // === Kill ===
+        "kill" => r##"
+agent-browser-session kill - Terminate all daemon processes
+
+Usage: agent-browser-session kill
+
+⚠️  FOR MANUAL USE ONLY — do NOT call from agents or scripts.
+
+Kills all running daemon processes, closes browser windows, and cleans up
+socket/pid files. Since the browser is shared across tabnames, killing it
+will interrupt ALL connected agents.
+
+Use this when you need to:
+  - Restart the daemon after a code update
+  - Free up resources
+  - Recover from a stuck daemon
+
+Examples:
+  agent-browser-session kill
+"##,
+
         // === Install ===
         "install" => r##"
 agent-browser-session install - Install browser binaries
@@ -1174,6 +1195,7 @@ Sessions:
 Setup:
   install                    Install browser binaries
   install --with-deps        Also install system dependencies (Linux)
+  kill                       Kill all daemons + browser (manual use only)
 
 Snapshot Options:
   -i, --interactive          Only interactive elements
