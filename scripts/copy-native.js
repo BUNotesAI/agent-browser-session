@@ -8,11 +8,22 @@ import { copyFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { platform, arch } from 'os';
+import { execFileSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '..');
 
-const sourcePath = join(projectRoot, 'cli/target/release/agent-browser-session');
+// Resolve the real target dir via cargo metadata so a global target-dir
+// (e.g. in ~/.cargo/config.toml) is respected
+const manifestPath = join(projectRoot, 'cli/Cargo.toml');
+const metadataJson = execFileSync(
+  'cargo',
+  ['metadata', '--format-version', '1', '--no-deps', '--manifest-path', manifestPath],
+  { encoding: 'utf8' }
+);
+const targetDirectory = JSON.parse(metadataJson).target_directory;
+
+const sourcePath = join(targetDirectory, 'release/agent-browser-session');
 const binDir = join(projectRoot, 'bin');
 
 // Determine platform suffix
