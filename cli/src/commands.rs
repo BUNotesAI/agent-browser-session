@@ -159,7 +159,7 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
                 context: "select".to_string(),
                 usage: "select <selector> <value>",
             })?;
-            Ok(json!({ "id": id, "action": "select", "selector": sel, "value": val }))
+            Ok(json!({ "id": id, "action": "select", "selector": sel, "values": val }))
         }
         "drag" => {
             let src = rest.get(0).ok_or_else(|| ParseError::MissingArguments {
@@ -1131,6 +1131,15 @@ mod tests {
         let cmd = parse_command(&args("click #button"), &default_flags()).unwrap();
         assert_eq!(cmd["action"], "click");
         assert_eq!(cmd["selector"], "#button");
+    }
+
+    #[test]
+    fn test_select_uses_values_field() {
+        let cmd = parse_command(&args("select @e1 ip_static"), &default_flags()).unwrap();
+        assert_eq!(cmd["action"], "select");
+        assert_eq!(cmd["selector"], "@e1");
+        assert_eq!(cmd["values"], "ip_static");
+        assert!(cmd.get("value").is_none());
     }
 
     #[test]
