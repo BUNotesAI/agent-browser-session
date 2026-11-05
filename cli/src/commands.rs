@@ -75,7 +75,7 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
                 context: cmd.to_string(),
                 usage: "open <url>",
             })?;
-            let url = if url.starts_with("http") {
+            let url = if url.starts_with("http") || url.starts_with("data:") {
                 url.to_string()
             } else {
                 format!("https://{}", url)
@@ -273,7 +273,11 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
 
         // === Screenshot/PDF ===
         "screenshot" => {
-            Ok(json!({ "id": id, "action": "screenshot", "path": rest.get(0), "fullPage": flags.full }))
+            let mut command = json!({ "id": id, "action": "screenshot", "fullPage": flags.full });
+            if let Some(path) = rest.get(0) {
+                command["path"] = json!(path);
+            }
+            Ok(command)
         }
         "pdf" => {
             let path = rest.get(0).ok_or_else(|| ParseError::MissingArguments {
@@ -367,10 +371,26 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
         // === Tabs ===
         "tab" => {
             match rest.get(0).map(|s| *s) {
-                Some("new") => Ok(json!({ "id": id, "action": "tab_new", "url": rest.get(1) })),
+                Some("new") => {
+                    if rest.get(1).is_some() {
+                        return Err(ParseError::MissingArguments {
+                            context: "tab new does not accept a URL".to_string(),
+                            usage: "tab new (use --tabname <name> open <url> for a named page)",
+                        });
+                    }
+                    Ok(json!({ "id": id, "action": "tab_new" }))
+                }
                 Some("list") => Ok(json!({ "id": id, "action": "tab_list" })),
                 Some("close") => {
-                    Ok(json!({ "id": id, "action": "tab_close", "index": rest.get(1).and_then(|s| s.parse::<i32>().ok()) }))
+                    let mut command = json!({ "id": id, "action": "tab_close" });
+                    if let Some(index) = rest.get(1) {
+                        let index = index.parse::<u32>().map_err(|_| ParseError::MissingArguments {
+                            context: "tab close".to_string(),
+                            usage: "tab close [nonnegative-index]",
+                        })?;
+                        command["index"] = json!(index);
+                    }
+                    Ok(command)
                 }
                 Some(n) if n.parse::<i32>().is_ok() => {
                     Ok(json!({ "id": id, "action": "tab_switch", "index": n.parse::<i32>().unwrap() }))
@@ -398,7 +418,7 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
         // === Frame ===
         "frame" => {
             if rest.get(0).map(|s| *s) == Some("main") {
-                Ok(json!({ "id": id, "action": "frame_main" }))
+                Ok(json!({ "id": id, "action": "mainframe" }))
             } else {
                 let sel = rest.get(0).ok_or_else(|| ParseError::MissingArguments {
                     context: "frame".to_string(),
@@ -413,7 +433,11 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
             const VALID: &[&str] = &["accept", "dismiss"];
             match rest.get(0).map(|s| *s) {
                 Some("accept") => {
-                    Ok(json!({ "id": id, "action": "dialog", "response": "accept", "promptText": rest.get(1) }))
+                    let mut command = json!({ "id": id, "action": "dialog", "response": "accept" });
+                    if let Some(text) = rest.get(1) {
+                        command["promptText"] = json!(text);
+                    }
+                    Ok(command)
                 }
                 Some("dismiss") => Ok(json!({ "id": id, "action": "dialog", "response": "dismiss" })),
                 Some(sub) => Err(ParseError::UnknownSubcommand {
@@ -431,8 +455,22 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
         "trace" => {
             const VALID: &[&str] = &["start", "stop"];
             match rest.get(0).map(|s| *s) {
-                Some("start") => Ok(json!({ "id": id, "action": "trace_start", "path": rest.get(1) })),
-                Some("stop") => Ok(json!({ "id": id, "action": "trace_stop", "path": rest.get(1) })),
+                Some("start") => {
+                    if rest.get(1).is_some() {
+                        return Err(ParseError::MissingArguments {
+                            context: "trace start does not accept an output path".to_string(),
+                            usage: "trace start (save with trace stop <path>)",
+                        });
+                    }
+                    Ok(json!({ "id": id, "action": "trace_start" }))
+                }
+                Some("stop") => {
+                    let path = rest.get(1).filter(|path| !path.is_empty()).ok_or_else(|| ParseError::MissingArguments {
+                        context: "trace stop".to_string(),
+                        usage: "trace stop <path>",
+                    })?;
+                    Ok(json!({ "id": id, "action": "trace_stop", "path": path }))
+                }
                 Some(sub) => Err(ParseError::UnknownSubcommand {
                     subcommand: sub.to_string(),
                     valid_options: VALID,
@@ -601,19 +639,69 @@ fn parse_find(rest: &[&str], id: &str) -> Result<Value, ParseError> {
         usage: "find <locator> <value> [action] [text]",
     })?;
     
-    let name_idx = rest.iter().position(|&s| s == "--name");
-    let name = name_idx.and_then(|i| rest.get(i + 1).map(|s| *s));
-    let exact = rest.iter().any(|&s| s == "--exact");
+    let mut name = None;
+    let mut exact = false;
+    let mut positional = vec![*locator];
+    let mut i = 1;
+    while i < rest.len() {
+        match rest[i] {
+            "--name" => {
+                name = Some(*rest.get(i + 1).ok_or_else(|| ParseError::MissingArguments {
+                    context: "find --name".to_string(),
+                    usage: "find role <role> [action] [text] --name <name>",
+                })?);
+                i += 2;
+            }
+            "--exact" => {
+                exact = true;
+                i += 1;
+            }
+            value => {
+                positional.push(value);
+                i += 1;
+            }
+        }
+    }
+    let rest = positional.as_slice();
+    if exact && !["text", "alt", "title"].contains(locator) {
+        return Err(ParseError::UnknownSubcommand {
+            subcommand: format!("--exact for find {locator}"),
+            valid_options: &["text", "alt", "title"],
+        });
+    }
+    if name.is_some() && *locator != "role" {
+        return Err(ParseError::UnknownSubcommand {
+            subcommand: format!("--name for find {locator}"),
+            valid_options: &["role"],
+        });
+    }
+    let actions: &'static [&'static str] = match *locator {
+        "role" | "testid" => &["click", "fill", "check", "hover"],
+        "label" => &["click", "fill", "check"],
+        "placeholder" => &["click", "fill"],
+        "text" | "alt" | "title" => &["click", "hover"],
+        "first" | "last" | "nth" => &["click", "fill", "check", "hover", "text"],
+        _ => &[],
+    };
+    let action_index = if *locator == "nth" { 3 } else { 2 };
+    if let Some(action) = rest.get(action_index) {
+        if !actions.contains(action) {
+            return Err(ParseError::UnknownSubcommand {
+                subcommand: action.to_string(),
+                valid_options: actions,
+            });
+        }
+    }
 
-    match *locator {
+    let mut command = match *locator {
         "role" | "text" | "label" | "placeholder" | "alt" | "title" | "testid" | "first" | "last" => {
             let value = rest.get(1).ok_or_else(|| ParseError::MissingArguments {
                 context: format!("find {}", locator),
                 usage: match *locator {
-                    "role" => "find role <role> [action] [--name <name>] [--exact]",
+                    "role" => "find role <role> [action] [text] [--name <name>]",
                     "text" => "find text <text> [action] [--exact]",
-                    "label" => "find label <label> [action] [text] [--exact]",
-                    "placeholder" => "find placeholder <text> [action] [text] [--exact]",
+                    "label" => "find label <label> [action] [text]",
+                    "placeholder" => "find placeholder <text> [action] [text]",
                     "alt" => "find alt <text> [action] [--exact]",
                     "title" => "find title <text> [action] [--exact]",
                     "testid" => "find testid <id> [action] [text]",
@@ -630,10 +718,10 @@ fn parse_find(rest: &[&str], id: &str) -> Result<Value, ParseError> {
             };
 
             match *locator {
-                "role" => Ok(json!({ "id": id, "action": "getbyrole", "role": value, "subaction": subaction, "value": fill_value, "name": name, "exact": exact })),
+                "role" => Ok(json!({ "id": id, "action": "getbyrole", "role": value, "subaction": subaction, "value": fill_value, "name": name })),
                 "text" => Ok(json!({ "id": id, "action": "getbytext", "text": value, "subaction": subaction, "exact": exact })),
-                "label" => Ok(json!({ "id": id, "action": "getbylabel", "label": value, "subaction": subaction, "value": fill_value, "exact": exact })),
-                "placeholder" => Ok(json!({ "id": id, "action": "getbyplaceholder", "placeholder": value, "subaction": subaction, "value": fill_value, "exact": exact })),
+                "label" => Ok(json!({ "id": id, "action": "getbylabel", "label": value, "subaction": subaction, "value": fill_value })),
+                "placeholder" => Ok(json!({ "id": id, "action": "getbyplaceholder", "placeholder": value, "subaction": subaction, "value": fill_value })),
                 "alt" => Ok(json!({ "id": id, "action": "getbyalttext", "text": value, "subaction": subaction, "exact": exact })),
                 "title" => Ok(json!({ "id": id, "action": "getbytitle", "text": value, "subaction": subaction, "exact": exact })),
                 "testid" => Ok(json!({ "id": id, "action": "getbytestid", "testId": value, "subaction": subaction, "value": fill_value })),
@@ -667,7 +755,9 @@ fn parse_find(rest: &[&str], id: &str) -> Result<Value, ParseError> {
             subcommand: locator.to_string(),
             valid_options: VALID,
         }),
-    }
+    }?;
+    command.as_object_mut().unwrap().retain(|_, value| !value.is_null());
+    Ok(command)
 }
 
 fn parse_mouse(rest: &[&str], id: &str) -> Result<Value, ParseError> {
@@ -702,7 +792,7 @@ fn parse_mouse(rest: &[&str], id: &str) -> Result<Value, ParseError> {
         Some("wheel") => {
             let dy = rest.get(1).and_then(|s| s.parse::<i32>().ok()).unwrap_or(100);
             let dx = rest.get(2).and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
-            Ok(json!({ "id": id, "action": "mousewheel", "deltaX": dx, "deltaY": dy }))
+            Ok(json!({ "id": id, "action": "wheel", "deltaX": dx, "deltaY": dy }))
         }
         Some(sub) => Err(ParseError::UnknownSubcommand {
             subcommand: sub.to_string(),
@@ -800,8 +890,12 @@ fn parse_set(rest: &[&str], id: &str) -> Result<Value, ParseError> {
             } else {
                 "no-preference"
             };
-            let reduced = rest.iter().any(|&s| s == "reduced-motion");
-            Ok(json!({ "id": id, "action": "media", "colorScheme": color, "reducedMotion": reduced }))
+            let reduced = if rest.iter().any(|&s| s == "reduced-motion") {
+                "reduce"
+            } else {
+                "no-preference"
+            };
+            Ok(json!({ "id": id, "action": "emulatemedia", "colorScheme": color, "reducedMotion": reduced }))
         }
         Some(sub) => Err(ParseError::UnknownSubcommand {
             subcommand: sub.to_string(),
@@ -826,14 +920,28 @@ fn parse_network(rest: &[&str], id: &str) -> Result<Value, ParseError> {
             let abort = rest.iter().any(|&s| s == "--abort");
             let body_idx = rest.iter().position(|&s| s == "--body");
             let body = body_idx.and_then(|i| rest.get(i + 1).map(|s| *s));
-            Ok(json!({ "id": id, "action": "route", "url": url, "abort": abort, "body": body }))
+            let mut command = json!({ "id": id, "action": "route", "url": url, "abort": abort });
+            if let Some(body) = body {
+                command["response"] = json!({ "body": body });
+            }
+            Ok(command)
         }
-        Some("unroute") => Ok(json!({ "id": id, "action": "unroute", "url": rest.get(1) })),
+        Some("unroute") => {
+            let mut command = json!({ "id": id, "action": "unroute" });
+            if let Some(url) = rest.get(1) {
+                command["url"] = json!(url);
+            }
+            Ok(command)
+        }
         Some("requests") => {
             let clear = rest.iter().any(|&s| s == "--clear");
             let filter_idx = rest.iter().position(|&s| s == "--filter");
             let filter = filter_idx.and_then(|i| rest.get(i + 1).map(|s| *s));
-            Ok(json!({ "id": id, "action": "requests", "clear": clear, "filter": filter }))
+            let mut command = json!({ "id": id, "action": "requests", "clear": clear });
+            if let Some(filter) = filter {
+                command["filter"] = json!(filter);
+            }
+            Ok(command)
         }
         Some(sub) => Err(ParseError::UnknownSubcommand {
             subcommand: sub.to_string(),

@@ -689,10 +689,10 @@ Usage: agent-browser-session find <locator> <value> [action] [text]
 Finds elements using semantic locators and optionally performs an action.
 
 Locators:
-  role <role>              Find by ARIA role (--name <n>, --exact)
+  role <role>              Find by ARIA role (--name <n>)
   text <text>              Find by text content (--exact)
-  label <label>            Find by associated label (--exact)
-  placeholder <text>       Find by placeholder text (--exact)
+  label <label>            Find by associated label
+  placeholder <text>       Find by placeholder text
   alt <text>               Find by alt text (--exact)
   title <text>             Find by title attribute (--exact)
   testid <id>              Find by data-testid attribute
@@ -701,11 +701,15 @@ Locators:
   nth <index> <selector>   Nth matching element (0-based)
 
 Actions (default: click):
-  click, fill, type, hover, focus, check, uncheck
+  role/testid:             click, fill, check, hover
+  label:                   click, fill, check
+  placeholder:             click, fill
+  text/alt/title:          click, hover
+  first/last/nth:          click, fill, check, hover, text
 
 Options:
   --name <name>        Filter role by accessible name
-  --exact              Require exact text match
+  --exact              Exact matching for text/alt/title only
 
 Global Options:
   --json               Output as JSON
@@ -715,7 +719,7 @@ Examples:
   agent-browser-session find role button click --name Submit
   agent-browser-session find text "Sign In" click
   agent-browser-session find label "Email" fill "user@example.com"
-  agent-browser-session find placeholder "Search..." type "query"
+  agent-browser-session find placeholder "Search..." fill "query"
   agent-browser-session find testid "login-form" click
   agent-browser-session find first "li.item" click
   agent-browser-session find nth 2 ".card" hover
@@ -874,7 +878,7 @@ Manage browser tabs in the current window.
 
 Operations:
   list                 List all tabs (default)
-  new [url]            Open new tab
+  new                  Open a new unnamed blank tab
   close [index]        Close tab (current if no index)
   <index>              Switch to tab by index
 
@@ -886,7 +890,7 @@ Examples:
   agent-browser-session tab
   agent-browser-session tab list
   agent-browser-session tab new
-  agent-browser-session tab new https://example.com
+  agent-browser-session --tabname example open https://example.com
   agent-browser-session tab 2
   agent-browser-session tab close
   agent-browser-session tab close 1
@@ -962,8 +966,8 @@ Usage: agent-browser-session trace <operation> [path]
 Record a trace for debugging with Trace Viewer.
 
 Operations:
-  start [path]         Start recording trace
-  stop [path]          Stop recording and save trace
+  start                Start recording trace (no output path)
+  stop <path>          Stop recording and save trace (path required)
 
 Global Options:
   --json               Output as JSON
@@ -971,8 +975,6 @@ Global Options:
 
 Examples:
   agent-browser-session trace start
-  agent-browser-session trace start ./my-trace
-  agent-browser-session trace stop
   agent-browser-session trace stop ./debug-trace.zip
 "##,
 
@@ -1201,7 +1203,7 @@ Tabs:
   tab [new|list|close|<n>]   Manage tabs
 
 Debug:
-  trace start|stop [path]    Record trace
+  trace start / stop <path>  Record trace; output path required on stop
   console [--clear]          View console logs
   errors [--clear]           View page errors
   highlight <sel>            Highlight element

@@ -138,7 +138,7 @@ agent-browser-session pdf output.pdf          # Save as PDF
 # Tabs
 agent-browser-session tab list                # List all tabs (includes named tabs)
 agent-browser-session tab new                 # New tab
-agent-browser-session tab new https://url     # New tab with URL
+agent-browser-session --tabname new-page open https://url  # New named page with URL
 agent-browser-session tab 2                   # Switch to tab index 2
 agent-browser-session tab close               # Close current tab
 
@@ -240,9 +240,41 @@ When refs are unavailable or unreliable:
 agent-browser-session find text "Sign In" click
 agent-browser-session find label "Email" fill "user@test.com"
 agent-browser-session find role button click --name "Submit"
-agent-browser-session find placeholder "Search" type "query"
+agent-browser-session find placeholder "Search" fill "query"
 agent-browser-session find testid "submit-btn" click
 ```
+
+### 已核对的参数与限制
+
+以下行为同时由原生 CLI 参数解析和 daemon schema 回归覆盖。省略可选参数时不会发送 JSON null；命令返回成功仍须用页面状态或实际产物核对动作效果。
+
+|命令|实际用法|
+|---|---|
+|截图|`screenshot`、`screenshot --full` 可省略路径，返回 base64；`screenshot /absolute/page.png` 写文件|
+|请求记录|`network requests` 可不带 filter；`network requests --clear` 清空；`network requests --filter api` 按 URL 子串筛选。先调用 requests 开始记录，再触发请求|
+|撤销拦截|`network unroute` 撤销全部；`network unroute "**/api/*"` 只撤销匹配项|
+|响应模拟|`network route "**/fixture.json" --body '{"ok":true}'` 将原文作为响应 body；`--abort` 中止请求|
+|同源请求头|`open https://example.com --headers '{"X-Probe":"fixture"}'` 将 headers 传给既有同源限定处理；不要在 argv 中放真实凭据|
+|trace|`trace start` 开始，`trace stop /absolute/trace.zip` 保存；stop 必须有路径|
+|tab|`tab new` 只建未命名空白页；带 URL 的新页面用 `--tabname <unique-name> open <url>`。`tab close` 关闭全局当前页，`tab close 2` 按非负全局索引关闭；这两个旧索引操作不提供具名 tab 隔离|
+|frame|`frame "#child"` 进入 iframe，`frame main` 回主 frame|
+|mouse|`mouse move <x> <y>`、`mouse down [button]`、`mouse up [button]`；`mouse wheel <deltaY> [deltaX]` 支持有符号偏移|
+|media|`set media dark`、`set media light reduced-motion`；映射 colorScheme 与字符串 reducedMotion 枚举|
+|dialog|`dialog accept` 接受默认提示，`dialog accept "fixture text"` 给 prompt 文本，`dialog dismiss` 取消|
+
+find 默认执行 click；`--name <name>` 仅 role 支持，位置可在动作前后，不会混入 fill 文本。动作表：
+
+|locator|允许的动作|匹配选项|
+|---|---|---|
+|role、testid|click、fill、check、hover|role 可用 --name|
+|label|click、fill、check|无 --exact|
+|placeholder|click、fill|无 --exact|
+|text、alt、title|click、hover|可用 --exact|
+|first、last、nth|click、fill、check、hover、text|nth 索引以0起；last 选择末项|
+
+限制：`tab new <url>`、`trace start <path>`、role/label/placeholder 等不支持的 `--exact` 及表外 find 动作会在 CLI 明确报错。前两项需要新增协议字段和执行语义，不在本次字段映射修复中扩展；trace 的输出路径只在 stop 指定。需要逐字匹配 role/label/placeholder 时，改用已核对的 selector/ref 定位方式，不声称被忽略的参数已生效。
+
+隔离实测或并行工作需要同时隔离 IPC 与浏览器 profile 时，设置独立的 `AGENT_BROWSER_SOCKET_DIR=/absolute/task/browser-data`；仅 `--tabname` 仍共享默认浏览器和登录信息。不要在隔离实测中操作默认 main 会话，也不要用 `kill` 清其他会话。
 
 ## Options
 
