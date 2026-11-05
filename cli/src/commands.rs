@@ -698,10 +698,10 @@ fn parse_find(rest: &[&str], id: &str) -> Result<Value, ParseError> {
             let value = rest.get(1).ok_or_else(|| ParseError::MissingArguments {
                 context: format!("find {}", locator),
                 usage: match *locator {
-                    "role" => "find role <role> [action] [--name <name>] [--exact]",
+                    "role" => "find role <role> [action] [text] [--name <name>]",
                     "text" => "find text <text> [action] [--exact]",
-                    "label" => "find label <label> [action] [text] [--exact]",
-                    "placeholder" => "find placeholder <text> [action] [text] [--exact]",
+                    "label" => "find label <label> [action] [text]",
+                    "placeholder" => "find placeholder <text> [action] [text]",
                     "alt" => "find alt <text> [action] [--exact]",
                     "title" => "find title <text> [action] [--exact]",
                     "testid" => "find testid <id> [action] [text]",
