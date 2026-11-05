@@ -130,7 +130,7 @@ agent-browser-session wait --text "Welcome"   # Wait for text
 agent-browser-session wait 2000               # Wait milliseconds
 
 # Capture
-agent-browser-session screenshot              # Screenshot (base64)
+agent-browser-session --json screenshot       # Screenshot base64 in data.base64
 agent-browser-session screenshot page.png     # Screenshot to file
 agent-browser-session screenshot --full       # Full page screenshot
 agent-browser-session pdf output.pdf          # Save as PDF
@@ -250,7 +250,7 @@ agent-browser-session find testid "submit-btn" click
 
 |命令|实际用法|
 |---|---|
-|截图|`screenshot`、`screenshot --full` 可省略路径，返回 base64；`screenshot /absolute/page.png` 写文件|
+|截图|`screenshot`、`screenshot --full` 可省略路径；daemon 返回 base64，CLI 需加 `--json` 才读取 data.base64，默认文本只显示 Done。`screenshot /absolute/page.png` 写文件|
 |请求记录|`network requests` 可不带 filter；`network requests --clear` 清空；`network requests --filter api` 按 URL 子串筛选。先调用 requests 开始记录，再触发请求|
 |撤销拦截|`network unroute` 撤销全部；`network unroute "**/api/*"` 只撤销匹配项|
 |响应模拟|`network route "**/fixture.json" --body '{"ok":true}'` 将原文作为响应 body；`--abort` 中止请求|
@@ -274,6 +274,10 @@ find 默认执行 click；`--name <name>` 仅 role 支持，位置可在动作�
 
 限制：`tab new <url>`、`trace start <path>`、role/label/placeholder 等不支持的 `--exact` 及表外 find 动作会在 CLI 明确报错。前两项需要新增协议字段和执行语义，不在本次字段映射修复中扩展；trace 的输出路径只在 stop 指定。需要逐字匹配 role/label/placeholder 时，改用已核对的 selector/ref 定位方式，不声称被忽略的参数已生效。
 
+0.4.6 本轮实测还暴露了两项执行层限制：`find last` 的请求可通过 schema，但目标 DOM 已确认存在时仍有 locator.last() 超时，先用已核对的非负 `find nth` 索引；具名 tab 的普通 selector 读取当前走 binding.page，`frame` 之后的 `get text` 不随 activeFrame 切换。未在字段映射修复中改这些执行语义，也不将命令返回成功当作跨 frame 功能已验证。
+
+trace 的 screenshots/snapshots 虽有 daemon 字段，CLI 当前未暴露对应选项；本轮不扩展这些开关。无路径截图的默认文本显示和这些 trace 开关均保留现状。
+
 隔离实测或并行工作需要同时隔离 IPC 与浏览器 profile 时，设置独立的 `AGENT_BROWSER_SOCKET_DIR=/absolute/task/browser-data`；仅 `--tabname` 仍共享默认浏览器和登录信息。不要在隔离实测中操作默认 main 会话，也不要用 `kill` 清其他会话。
 
 ## Options
@@ -293,6 +297,7 @@ find 默认执行 click；`--name <name>` 仅 role 支持，位置可在动作�
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `AGENT_BROWSER_SOCKET_DIR` | IPC 文件及 headed/headless profile 的根目录；隔离实测应每任务独立设置 | `$XDG_RUNTIME_DIR/agent-browser`，否则 `~/.agent-browser` |
 | `AGENT_BROWSER_TABNAME` | Named tab | `ZEROTABPAGE` |
 | `AGENT_BROWSER_HEADED` | Browser mode | `true` |
 | `AGENT_BROWSER_NAV_DELAY_MS` | Navigation delay (ms) | `5000` |
